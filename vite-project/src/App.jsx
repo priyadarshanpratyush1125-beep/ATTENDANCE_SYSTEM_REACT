@@ -37,8 +37,8 @@ function App() {
     setMessage("");
   };
 
-  // Runs when the Save Student button is clicked
-  const handleSaveStudent = (event) => {
+  {/* Runs when the Save Student button is clicked */}
+    const handleSaveStudent = (event) => {
     event.preventDefault();
 
     const newStudent = {
@@ -55,7 +55,7 @@ function App() {
       `Student record successfully saved for ${studentForm.name}!`
     );
 
-    // Clear the form after saving
+    {/*Clear the form after saving */}
     setStudentForm({ ...emptyStudentForm });
   };
 
@@ -67,8 +67,8 @@ function App() {
 
       <main>
         <h2>Admin Dashboard</h2>
-        // Button to open or close the form
-        <button
+        {/* Button to open or close the form */}
+          <button
           type="button"
           onClick={() => {
             setIsAddStudentOpen((isOpen) => !isOpen);
@@ -79,7 +79,7 @@ function App() {
             ? "Close Add Student Form"
             : "Add Student"}
         </button>
-        // Display the form only when the button is clicked
+        {/* Display the form only when the button is clicked */}
         {isAddStudentOpen && (
           <section className="form-section">
             <h3>Add Student</h3>
@@ -163,15 +163,14 @@ function App() {
             </form>
           </section>
         )}
-
-        // Show a message after saving.....
+        {/*Show a message after saving.....*/}
         {message && (
           <p className="success-message" role="status">
             {message}
           </p>
         )}
 
-        //Show students currently stored in React state...
+        {/*Show students currently stored in React state...*/}
         {students.length > 0 && (
           <section>
             <h3>Added Students</h3>
