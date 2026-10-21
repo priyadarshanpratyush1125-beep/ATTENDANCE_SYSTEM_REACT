@@ -61,6 +61,13 @@ function App() {
 
   // Stores upload success or validation messages
   const [assignmentMessage, setAssignmentMessage] = useState("");
+  
+  // Controls whether the Delete Student popup is visible
+  const [isDeleteStudentOpen, setIsDeleteStudentOpen] = useState(false);
+
+  // Stores the message displayed after deleting a student
+  const [deleteMessage, setDeleteMessage] = useState("");
+
 
 
 
@@ -268,6 +275,55 @@ function App() {
     setSelectedAssignment(null);
     event.currentTarget.reset();
   };
+  
+  // Delete a student from the active student list
+  const handleDeleteStudent = (studentId) => {
+    // Find the student selected for deletion
+    const studentToDelete = students.find(
+      (student) => student.id === studentId
+    );
+
+    // Stop if the student does not exist
+    if (!studentToDelete) {
+      return;
+    }
+
+    // Ask before deleting the record
+    const shouldDelete = window.confirm(
+      `Are you sure you want to delete ${studentToDelete.name}?`
+    );
+
+    if (!shouldDelete) {
+      return;
+    }
+
+    // Remove the selected student from the students array
+    setStudents((currentStudents) =>
+      currentStudents.filter(
+        (student) => student.id !== studentId
+      )
+    );
+
+    // Remove the student from any currently displayed attendance list
+    setAttendanceList((currentList) =>
+      currentList.filter(
+        (student) => student.id !== studentId
+      )
+    );
+
+    // Remove the student's currently selected attendance status
+    setAttendanceStatus((currentStatus) => {
+      const updatedStatus = { ...currentStatus };
+      delete updatedStatus[studentId];
+      return updatedStatus;
+    });
+
+    // Display the success message
+    setDeleteMessage(
+      `Student ${studentToDelete.name} deleted successfully.`
+    );
+  };
+
 
 
 
@@ -315,6 +371,17 @@ function App() {
 >
   Upload Assignment
 </button>
+
+<button
+  type="button"
+  onClick={() => {
+    setIsDeleteStudentOpen(true);
+    setDeleteMessage("");
+  }}
+>
+  Delete Student
+</button>
+
 
 
   <p className="record-count">
@@ -517,6 +584,86 @@ function App() {
 
       </main>
       
+  {/* Delete Student popup */}
+  {isDeleteStudentOpen && (
+    <div className="modal-backdrop">
+      <section
+        className="delete-student-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-student-title"
+      >
+        {/* Popup heading and close button */}
+        <div className="modal-heading">
+          <h3 id="delete-student-title">
+            Delete Student
+          </h3>
+
+          <button
+            type="button"
+            onClick={() => setIsDeleteStudentOpen(false)}
+          >
+            Close
+          </button>
+        </div>
+
+        {/* Display deletion messages */}
+        {deleteMessage && (
+          <p className="delete-message" role="status">
+            {deleteMessage}
+          </p>
+        )}
+
+        {/* Show a message if there are no students */}
+        {students.length === 0 ? (
+          <p>No students have been added yet.</p>
+        ) : (
+          <div className="delete-table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Class</th>
+                  <th>Section</th>
+                  <th>Roll Number</th>
+                  <th>Email</th>
+                  <th>Phone</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {students.map((student) => (
+                  <tr key={student.id}>
+                    <td>{student.name}</td>
+                    <td>{student.className}</td>
+                    <td>{student.section}</td>
+                    <td>{student.rollNo}</td>
+                    <td>{student.email}</td>
+                    <td>{student.phone}</td>
+
+                    <td>
+                      <button
+                        type="button"
+                        className="delete-button"
+                        onClick={() =>
+                          handleDeleteStudent(student.id)
+                        }
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </div>
+  )}
+
+      
   {/* Attendance popup */}
   {isAttendanceOpen && (
     <div className="modal-backdrop">
@@ -642,17 +789,6 @@ function App() {
             >
               Save Attendance
             </button>
-            
-            <button
-              type="button"
-              onClick={() => {
-              setIsAssignmentOpen(true);
-              setAssignmentMessage("");
-             }}
-  >
-             Upload Assignment
-            </button>
-
           </section>
         )}
 
