@@ -49,6 +49,19 @@ function App() {
 
   // Stores attendance-related messages
   const [attendanceMessage, setAttendanceMessage] = useState("");
+  
+  // Controls whether the Upload Assignment popup is visible
+  const [isAssignmentOpen, setIsAssignmentOpen] = useState(false);
+
+  // Stores the file currently selected by the admin
+  const [selectedAssignment, setSelectedAssignment] = useState(null);
+
+  // Stores assignment files added during the current session
+  const [assignments, setAssignments] = useState([]);
+
+  // Stores upload success or validation messages
+  const [assignmentMessage, setAssignmentMessage] = useState("");
+
 
 
   // Runs whenever a form field changes
@@ -195,6 +208,67 @@ function App() {
       `Attendance saved successfully! Present: ${presentCount}, Absent: ${absentCount}.`
     );
   };
+  
+  // Handle file selection
+  const handleAssignmentFileChange = (event) => {
+    const file = event.target.files?.[0] || null;
+
+    if (!file) {
+      setSelectedAssignment(null);
+      return;
+    }
+
+    // Accept PDF files or images
+    const isPdf =
+      file.type === "application/pdf" ||
+      file.name.toLowerCase().endsWith(".pdf");
+
+    const isImage =
+      file.type.startsWith("image/") ||
+      /\.(png|jpe?g|gif|webp|bmp)$/i.test(file.name);
+
+    if (!isPdf && !isImage) {
+      setSelectedAssignment(null);
+      event.target.value = "";
+      setAssignmentMessage("Please select a PDF or image file.");
+      return;
+    }
+
+    setSelectedAssignment(file);
+    setAssignmentMessage("");
+  };
+
+  // Add the selected assignment to the current session
+  const handleUploadAssignment = (event) => {
+    event.preventDefault();
+
+    if (!selectedAssignment) {
+      setAssignmentMessage("Please select a PDF or image file first.");
+      return;
+    }
+
+    const newAssignment = {
+      id: Date.now(),
+      name: selectedAssignment.name,
+      type: selectedAssignment.type,
+      size: selectedAssignment.size,
+      file: selectedAssignment,
+    };
+
+    setAssignments((currentAssignments) => [
+      ...currentAssignments,
+      newAssignment,
+    ]);
+
+    setAssignmentMessage(
+      `Assignment uploaded successfully: ${selectedAssignment.name}. This demo stores it only for the current session.`
+    );
+
+    // Clear the selected file after adding it
+    setSelectedAssignment(null);
+    event.currentTarget.reset();
+  };
+
 
 
   return (
@@ -231,6 +305,17 @@ function App() {
   >
     Attendance
   </button>
+  
+<button
+  type="button"
+  onClick={() => {
+    setIsAssignmentOpen(true);
+    setAssignmentMessage("");
+  }}
+>
+  Upload Assignment
+</button>
+
 
   <p className="record-count">
     Attendance sessions saved in this session: {attendanceRecords.length}
@@ -355,6 +440,81 @@ function App() {
             </table>
           </section>
         )}
+        
+  {/* Upload Assignment popup */}
+  {isAssignmentOpen && (
+    <div className="modal-backdrop">
+      <section
+        className="assignment-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="assignment-title"
+      >
+        <div className="modal-heading">
+          <h3 id="assignment-title">Upload Assignment</h3>
+
+          <button
+            type="button"
+            onClick={() => setIsAssignmentOpen(false)}
+          >
+            Close
+          </button>
+        </div>
+
+        <form
+          className="assignment-form"
+          onSubmit={handleUploadAssignment}
+        >
+          <label htmlFor="assignmentFile">
+            Select PDF or Image
+          </label>
+
+          <input
+            id="assignmentFile"
+            name="assignmentFile"
+            type="file"
+            accept="application/pdf,image/*"
+            onChange={handleAssignmentFileChange}
+          />
+
+          {selectedAssignment && (
+            <p>
+              Selected file: {selectedAssignment.name}
+            </p>
+          )}
+
+          <button type="submit">
+            Upload Assignment
+          </button>
+        </form>
+
+        {/* Show upload success or error messages */}
+        {assignmentMessage && (
+          <p className="assignment-message" role="status">
+            {assignmentMessage}
+          </p>
+        )}
+
+        {/* Display assignments added in the current session */}
+        {assignments.length > 0 && (
+          <section className="assignment-list">
+            <h4>Assignments Added</h4>
+
+            <ul>
+              {assignments.map((assignment) => (
+                <li key={assignment.id}>
+                  {assignment.name}
+                  {" "}
+                  ({Math.ceil(assignment.size / 1024)} KB)
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </section>
+    </div>
+  )}
+
       </main>
       
   {/* Attendance popup */}
@@ -482,6 +642,17 @@ function App() {
             >
               Save Attendance
             </button>
+            
+            <button
+              type="button"
+              onClick={() => {
+              setIsAssignmentOpen(true);
+              setAssignmentMessage("");
+             }}
+  >
+             Upload Assignment
+            </button>
+
           </section>
         )}
 
