@@ -36,6 +36,11 @@ function App() {
   // Controls whether the attendance options are visible
   const [isMyAttendanceOpen, setIsMyAttendanceOpen] =
     useState(false);
+
+  // Controls whether the student's assignment list is visible
+  const [isMyAssignmentsOpen, setIsMyAssignmentsOpen] =
+  useState(false);
+
   // Determines which attendance records the student wants to view
   const [studentAttendanceView, setStudentAttendanceView] =
     useState("");
@@ -274,13 +279,16 @@ function App() {
       return;
     }
 
-    const newAssignment = {
-      id: Date.now(),
-      name: selectedAssignment.name,
-      type: selectedAssignment.type,
-      size: selectedAssignment.size,
-      file: selectedAssignment,
-    };
+    
+const newAssignment = {
+  id: Date.now(),
+  name: selectedAssignment.name,
+  type: selectedAssignment.type,
+  size: selectedAssignment.size,
+  file: selectedAssignment,
+  url: URL.createObjectURL(selectedAssignment),
+};
+
 
     setAssignments((currentAssignments) => [
       ...currentAssignments,
@@ -481,17 +489,18 @@ function App() {
                    : "My Attendance"}
                   </button>
 
-
                 <button
                   type="button"
-                  onClick={() =>
-                    setStudentPreviewMessage(
-                      "My Assignments will be implemented in Step 9."
-                    )
-                  }
+                  onClick={() => {
+                  setIsMyAssignmentsOpen((isOpen) => !isOpen);
+                  setStudentPreviewMessage("");
+                }}
                 >
-                  My Assignments
+                {isMyAssignmentsOpen
+                    ? "Close My Assignments"
+                    : "My Assignments"}
                 </button>
+
                             
               </div>
               
@@ -593,6 +602,51 @@ function App() {
     )}
   </section>
 )}
+
+
+{/* Student assignment list */}
+{isMyAssignmentsOpen && (
+  <section className="student-assignment-options">
+    <h3>My Assignments</h3>
+
+    {assignments.length === 0 ? (
+      <p>No assignments have been uploaded yet.</p>
+    ) : (
+      <ul>
+        {assignments.map((assignment) => (
+          <li key={assignment.id}>
+            <strong>{assignment.name}</strong>
+            {" "}
+            ({Math.ceil(assignment.size / 1024)} KB)
+            {" — "}
+
+            <a
+              href={assignment.url}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Open
+            </a>
+
+            {" | "}
+
+            <a
+              href={assignment.url}
+              download={assignment.name}
+            >
+              Download
+            </a>
+          </li>
+        ))}
+      </ul>
+    )}
+
+    <p className="assignment-note">
+      Assignments are available for this session only.
+    </p>
+  </section>
+)}
+
 
               {studentPreviewMessage && (
                 <p role="status">
