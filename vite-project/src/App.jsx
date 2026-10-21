@@ -21,6 +21,18 @@ function App() {
 
   // Stores the students added during this session....
   const [students, setStudents] = useState([]);
+  
+  // Controls whether the Student Dashboard is open
+  const [isStudentDashboardOpen, setIsStudentDashboardOpen] =
+    useState(false);
+
+  // Stores the student selected for preview
+  const [selectedStudentId, setSelectedStudentId] = useState("");
+
+  // Displays temporary messages in the Student Dashboard
+  const [studentPreviewMessage, setStudentPreviewMessage] =
+    useState("");
+
 
   // Stores success messages(ex-if student succesfully added....)
   const [message, setMessage] = useState("");
@@ -323,15 +335,147 @@ function App() {
       `Student ${studentToDelete.name} deleted successfully.`
     );
   };
+  
+  // Find the student selected for preview
+  const previewStudent = students.find(
+    (student) => String(student.id) === selectedStudentId
+  );
 
+  // Display the Student Dashboard when preview is enabled
+  if (isStudentDashboardOpen) {
+    return (
+      <div className="app">
+        <header>
+          <h1>Student Attendance System</h1>
+        </header>
 
+        <main className="student-dashboard">
+          <h2>Student Dashboard</h2>
 
+          <p>
+            Welcome to the Student Dashboard.
+          </p>
 
+          {/* Return to the Admin Dashboard */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsStudentDashboardOpen(false);
+              setStudentPreviewMessage("");
+            }}
+          >
+            Back to Admin Dashboard
+          </button>
+
+          <section className="student-selector-section">
+            <h3>Select Student</h3>
+
+            <label htmlFor="previewStudent">
+              Choose a student for preview
+            </label>
+
+            <select
+              id="previewStudent"
+              value={selectedStudentId}
+              onChange={(event) => {
+                setSelectedStudentId(event.target.value);
+                setStudentPreviewMessage("");
+              }}
+            >
+              <option value="">-- Select a student --</option>
+
+              {students.map((student) => (
+                <option
+                  key={student.id}
+                  value={String(student.id)}
+                >
+                  {student.name} - {student.rollNo}
+                </option>
+              ))}
+            </select>
+
+            {students.length === 0 && (
+              <p>
+                No students found. Go to the Admin Dashboard
+                and add a student first.
+              </p>
+            )}
+          </section>
+
+          {/* Show the selected student's basic profile */}
+          {previewStudent && (
+            <section className="student-profile">
+              <h3>Welcome, {previewStudent.name}</h3>
+
+              <p>
+                <strong>Class:</strong> {previewStudent.className}
+              </p>
+
+              <p>
+                <strong>Section:</strong> {previewStudent.section}
+              </p>
+
+              <p>
+                <strong>Roll Number:</strong> {previewStudent.rollNo}
+              </p>
+
+              <p>
+                <strong>Email:</strong> {previewStudent.email}
+              </p>
+
+              {/* These buttons will be implemented in later steps */}
+              <div className="student-dashboard-actions">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setStudentPreviewMessage(
+                      "My Attendance will be implemented in Step 6."
+                    )
+                  }
+                >
+                  My Attendance
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setStudentPreviewMessage(
+                      "My Assignments will be implemented in Step 9."
+                    )
+                  }
+                >
+                  My Assignments
+                </button>
+              </div>
+
+              {studentPreviewMessage && (
+                <p role="status">
+                  {studentPreviewMessage}
+                </p>
+              )}
+            </section>
+          )}
+        </main>
+      </div>
+    );
+  }
   return (
     <div className="app">
       <header>
         <h1>Student Attendance System</h1>
       </header>
+      
+  <button
+    type="button"
+    onClick={() => {
+      setIsStudentDashboardOpen(true);
+      setSelectedStudentId("");
+      setStudentPreviewMessage("");
+    }}
+  >
+    Preview Student Dashboard
+  </button>
+
 
       <main>
         <h2>Admin Dashboard</h2>
