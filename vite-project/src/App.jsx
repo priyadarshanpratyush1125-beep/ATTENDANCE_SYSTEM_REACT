@@ -32,6 +32,14 @@ function App() {
   // Displays temporary messages in the Student Dashboard
   const [studentPreviewMessage, setStudentPreviewMessage] =
     useState("");
+  
+  // Controls whether the attendance options are visible
+  const [isMyAttendanceOpen, setIsMyAttendanceOpen] =
+    useState(false);
+  // Determines which attendance records the student wants to view
+  const [studentAttendanceView, setStudentAttendanceView] =
+    useState("");
+
 
 
   // Stores success messages(ex-if student succesfully added....)
@@ -340,6 +348,42 @@ function App() {
   const previewStudent = students.find(
     (student) => String(student.id) === selectedStudentId
   );
+  
+  // Get today's date in local YYYY-MM-DD format
+  const now = new Date();
+
+  const todayString =
+    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
+  // Get the current year and month, for example 2026-10
+  const currentMonth = todayString.slice(0, 7);
+
+  // Get attendance records belonging only to the selected student
+  const selectedStudentAttendance = attendanceRecords.flatMap(
+    (record) =>
+      record.students
+        .filter(
+          (entry) =>
+            String(entry.studentId) === selectedStudentId
+        )
+        .map((entry) => ({
+          ...entry,
+          date: record.date,
+          className: record.className,
+          section: record.section,
+        }))
+  );
+
+  // Keep records matching today's date
+  const todayAttendance = selectedStudentAttendance.filter(
+    (record) => record.date === todayString
+  );
+
+  // Keep records matching the current calendar month
+  const monthlyAttendance = selectedStudentAttendance.filter(
+    (record) => record.date.startsWith(currentMonth)
+  );
+
 
   // Display the Student Dashboard when preview is enabled
   if (isStudentDashboardOpen) {
@@ -424,17 +468,19 @@ function App() {
               </p>
 
               {/* These buttons will be implemented in later steps */}
-              <div className="student-dashboard-actions">
+              <div className="student-dashboard-actions">             
                 <button
                   type="button"
-                  onClick={() =>
-                    setStudentPreviewMessage(
-                      "My Attendance will be implemented in Step 6."
-                    )
-                  }
+                  onClick={() => {
+                  setIsMyAttendanceOpen((isOpen) => !isOpen);
+                  setStudentPreviewMessage("");
+                  }}
                 >
-                  My Attendance
-                </button>
+                  {isMyAttendanceOpen
+                   ? "Close My Attendance"
+                   : "My Attendance"}
+                  </button>
+
 
                 <button
                   type="button"
@@ -446,7 +492,107 @@ function App() {
                 >
                   My Assignments
                 </button>
+                            
               </div>
+              
+{/* Attendance options */}
+{isMyAttendanceOpen && (
+  <section className="student-attendance-options">
+    <h3>My Attendance</h3>
+
+    <p>Choose which attendance record you want to view.</p>
+
+    <div className="student-dashboard-actions">
+      <button
+        type="button"
+        onClick={() => {
+          setStudentAttendanceView("today");
+          setStudentPreviewMessage("");
+        }}
+      >
+        Show Today's Attendance
+      </button>
+
+      <button
+        type="button"
+        onClick={() => {
+          setStudentAttendanceView("monthly");
+          setStudentPreviewMessage("");
+        }}
+      >
+        Show All Attendance (Monthly)
+      </button>
+    </div>
+
+    {/* Today's attendance table */}
+    {studentAttendanceView === "today" && (
+      <section className="student-attendance-results">
+        <h4>Today's Attendance</h4>
+        <p>Date: {todayString}</p>
+
+        {todayAttendance.length === 0 ? (
+          <p>No attendance record found for today.</p>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Class</th>
+                <th>Section</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {todayAttendance.map((record, index) => (
+                <tr key={`${record.date}-${index}`}>
+                  <td>{record.date}</td>
+                  <td>{record.className}</td>
+                  <td>{record.section}</td>
+                  <td>{record.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+    )}
+
+    {/* Monthly attendance table */}
+    {studentAttendanceView === "monthly" && (
+      <section className="student-attendance-results">
+        <h4>Monthly Attendance</h4>
+        <p>Month: {currentMonth}</p>
+
+        {monthlyAttendance.length === 0 ? (
+          <p>No attendance records found for this month.</p>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Class</th>
+                <th>Section</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {monthlyAttendance.map((record, index) => (
+                <tr key={`${record.date}-${index}`}>
+                  <td>{record.date}</td>
+                  <td>{record.className}</td>
+                  <td>{record.section}</td>
+                  <td>{record.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+    )}
+  </section>
+)}
 
               {studentPreviewMessage && (
                 <p role="status">
