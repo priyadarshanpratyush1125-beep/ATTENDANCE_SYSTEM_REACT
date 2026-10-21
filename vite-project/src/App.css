@@ -219,3 +219,27 @@ th {
     align-items: flex-start;
   }
 }
+
+/* Student attendance options */
+.student-attendance-options {
+  margin-top: 20px;
+  padding: 16px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+}
+
+.student-attendance-options h3 {
+  margin-bottom: 10px;
+}
+
+.student-attendance-options p {
+  margin-bottom: 14px;
+}
+
+@media (max-width: 600px) {
+  .student-attendance-options {
+    padding: 12px;
+  }
+}
+
