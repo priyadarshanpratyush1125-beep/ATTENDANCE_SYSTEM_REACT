@@ -26,6 +26,24 @@ function App() {
   const [isStudentDashboardOpen, setIsStudentDashboardOpen] =
     useState(false);
 
+  
+  // Controls whether the Login Page is visible
+  const [isLoginPageOpen, setIsLoginPageOpen] = useState(true);
+
+  // Stores messages displayed on the Login Page
+  const [loginMessage, setLoginMessage] = useState("");
+
+  // Stores Admin Login details
+  const [adminUsername, setAdminUsername] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
+
+  // Stores Student Login details
+  const [studentLogin, setStudentLogin] = useState({
+    rollNo: "",
+    email: "",
+  });
+
+
   // Stores the student selected for preview
   const [selectedStudentId, setSelectedStudentId] = useState("");
 
@@ -352,6 +370,73 @@ const newAssignment = {
     );
   };
   
+  
+  // Handle Admin Login
+  const handleAdminLogin = (event) => {
+    event.preventDefault();
+
+    // Temporary demo credentials
+    if (
+      adminUsername.trim() === "admin" &&
+      adminPassword === "admin123"
+    ) {
+      setIsLoginPageOpen(false);
+      setIsStudentDashboardOpen(false);
+      setLoginMessage("");
+
+      setAdminUsername("");
+      setAdminPassword("");
+    } else {
+      setLoginMessage(
+        "Invalid Admin username or password."
+      );
+    }
+  };
+
+  
+  // Handle Student Login
+  const handleStudentLogin = (event) => {
+    event.preventDefault();
+
+    // Find a student matching the entered roll number and email
+    const matchedStudent = students.find(
+      (student) =>
+        String(student.rollNo).trim().toLowerCase() ===
+          studentLogin.rollNo.trim().toLowerCase() &&
+        student.email.trim().toLowerCase() ===
+          studentLogin.email.trim().toLowerCase()
+    );
+
+    // Display an error if no matching student exists
+    if (!matchedStudent) {
+      setLoginMessage(
+        "Student not found. Check your roll number and email."
+      );
+      return;
+    }
+
+    // Remember the selected student's ID
+    setSelectedStudentId(String(matchedStudent.id));
+
+    // Open the Student Dashboard
+    setIsStudentDashboardOpen(true);
+    setIsLoginPageOpen(false);
+
+    // Reset the Student Dashboard's temporary view states
+    setIsMyAttendanceOpen(false);
+    setStudentAttendanceView("");
+    setIsMyAssignmentsOpen(false);
+    setStudentPreviewMessage("");
+    setLoginMessage("");
+
+    // Clear the login fields
+    setStudentLogin({
+      rollNo: "",
+      email: "",
+    });
+  };
+
+
   // Find the student selected for preview
   const previewStudent = students.find(
     (student) => String(student.id) === selectedStudentId
@@ -392,6 +477,121 @@ const newAssignment = {
     (record) => record.date.startsWith(currentMonth)
   );
 
+  
+  // Show the Login Page first
+  if (isLoginPageOpen) {
+    return (
+      <div className="app login-page">
+        <header>
+          <h1>Student Attendance System</h1>
+          <p>Login to continue</p>
+        </header>
+
+        <main className="login-grid">
+
+          {/* Admin Login section */}
+          <section className="login-card">
+            <h2>Admin Login</h2>
+
+            <form onSubmit={handleAdminLogin}>
+              <label>
+                Admin Username
+                <input
+                  type="text"
+                  value={adminUsername}
+                  onChange={(event) =>
+                    setAdminUsername(event.target.value)
+                  }
+                  placeholder="Enter admin username"
+                  required
+                />
+              </label>
+
+              <label>
+                Password
+                <input
+                  type="password"
+                  value={adminPassword}
+                  onChange={(event) =>
+                    setAdminPassword(event.target.value)
+                  }
+                  placeholder="Enter password"
+                  required
+                />
+              </label>
+
+              <button type="submit">
+                Login as Admin
+              </button>
+            </form>
+
+            <p className="login-hint">
+              Demo username: admin
+              <br />
+              Demo password: admin123
+            </p>
+          </section>
+
+          {/* Student Login section */}
+          <section className="login-card">
+            <h2>Student Login</h2>
+
+            <form onSubmit={handleStudentLogin}>
+              <label>
+                Roll Number
+                <input
+                  type="text"
+                  value={studentLogin.rollNo}
+                  onChange={(event) =>
+                    setStudentLogin((current) => ({
+                      ...current,
+                      rollNo: event.target.value,
+                    }))
+                  }
+                  placeholder="Enter roll number"
+                  required
+                />
+              </label>
+
+              <label>
+                Email
+                <input
+                  type="email"
+                  value={studentLogin.email}
+                  onChange={(event) =>
+                    setStudentLogin((current) => ({
+                      ...current,
+                      email: event.target.value,
+                    }))
+                  }
+                  placeholder="Enter registered email"
+                  required
+                />
+              </label>
+
+              <button type="submit">
+                Login as Student
+              </button>
+            </form>
+
+            <p className="login-hint">
+              Use the roll number and email added by Admin.
+            </p>
+          </section>
+
+        </main>
+
+        {/* Display login errors */}
+        {loginMessage && (
+          <p className="login-message" role="status">
+            {loginMessage}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+
 
   // Display the Student Dashboard when preview is enabled
   if (isStudentDashboardOpen) {
@@ -409,50 +609,26 @@ const newAssignment = {
           </p>
 
           {/* Return to the Admin Dashboard */}
-          <button
-            type="button"
-            onClick={() => {
-              setIsStudentDashboardOpen(false);
-              setStudentPreviewMessage("");
-            }}
-          >
-            Back to Admin Dashboard
-          </button>
+          
+<button
+  type="button"
+  onClick={() => {
+    setIsStudentDashboardOpen(false);
+    setIsLoginPageOpen(true);
 
-          <section className="student-selector-section">
-            <h3>Select Student</h3>
+    setSelectedStudentId("");
+    setStudentPreviewMessage("");
+    setIsMyAttendanceOpen(false);
+    setStudentAttendanceView("");
+    setIsMyAssignmentsOpen(false);
+    setLoginMessage("");
+  }}
+>
+  Logout
+</button>
 
-            <label htmlFor="previewStudent">
-              Choose a student for preview
-            </label>
 
-            <select
-              id="previewStudent"
-              value={selectedStudentId}
-              onChange={(event) => {
-                setSelectedStudentId(event.target.value);
-                setStudentPreviewMessage("");
-              }}
-            >
-              <option value="">-- Select a student --</option>
-
-              {students.map((student) => (
-                <option
-                  key={student.id}
-                  value={String(student.id)}
-                >
-                  {student.name} - {student.rollNo}
-                </option>
-              ))}
-            </select>
-
-            {students.length === 0 && (
-              <p>
-                No students found. Go to the Admin Dashboard
-                and add a student first.
-              </p>
-            )}
-          </section>
+         
 
           {/* Show the selected student's basic profile */}
           {previewStudent && (
@@ -665,16 +841,17 @@ const newAssignment = {
         <h1>Student Attendance System</h1>
       </header>
       
-  <button
-    type="button"
-    onClick={() => {
-      setIsStudentDashboardOpen(true);
-      setSelectedStudentId("");
-      setStudentPreviewMessage("");
-    }}
-  >
-    Preview Student Dashboard
-  </button>
+  
+<button
+  type="button"
+  onClick={() => {
+    setIsLoginPageOpen(true);
+    setLoginMessage("");
+  }}
+>
+  Logout
+</button>
+
 
 
       <main>
