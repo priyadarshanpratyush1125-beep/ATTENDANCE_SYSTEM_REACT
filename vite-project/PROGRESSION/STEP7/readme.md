@@ -1,0 +1,1 @@
+## at this point when i click on show my assignment in student dashboard it show all assignment given by admin BUT still same problem when i refresh the page again i have to add student then upload assginmnet then only student can able to see assignment.....as i do not have any database/JSON file 
