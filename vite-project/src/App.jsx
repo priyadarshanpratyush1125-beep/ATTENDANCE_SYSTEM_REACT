@@ -9,6 +9,8 @@ const emptyStudentForm = {
   email: "",
   phone: "",
 };
+// Address of our Express backend
+const API_BASE_URL = "http://localhost:5000/api";
 
 function App() {
   //actually it controls whether the Add Student form is visible
