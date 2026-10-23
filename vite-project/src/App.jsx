@@ -169,26 +169,62 @@ function App() {
   };
 
   {/* Runs when the Save Student button is clicked */}
-    const handleSaveStudent = (event) => {
+    
+  // Save a new student through the backend API
+  const handleSaveStudent = async (event) => {
     event.preventDefault();
 
-    const newStudent = {
-      id: Date.now(),
-      ...studentForm,
-    };
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/students`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(studentForm),
+        }
+      );
 
-    setStudents((currentStudents) => [
-      ...currentStudents,
-      newStudent,
-    ]);
+      const data = await response.json();
 
-    setMessage(
-      `Student record successfully saved for ${studentForm.name}!`
-    );
+      // Handle backend validation and duplicate errors
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.message || "Unable to save student."
+        );
+      }
 
-    {/*Clear the form after saving */}
-    setStudentForm({ ...emptyStudentForm });
+      // Use the student returned by MongoDB
+      const savedStudent = {
+        ...data.student,
+        id: String(data.student._id),
+      };
+
+      // Add the successfully saved student to the UI
+      setStudents((currentStudents) => [
+        savedStudent,
+        ...currentStudents.filter(
+          (student) => String(student.id) !== savedStudent.id
+        ),
+      ]);
+
+      // Display the backend's success message
+      setMessage(
+        `Student record successfully saved for ${savedStudent.name}!`
+      );
+
+      // Clear the form after saving
+      setStudentForm({ ...emptyStudentForm });
+    } catch (error) {
+      console.error("Error saving student:", error);
+
+      setMessage(
+        error.message || "Could not save student. Please try again."
+      );
+    }
   };
+
   
   // Update the selected class, section, or date
   const handleAttendanceFilterChange = (event) => {
