@@ -1,6 +1,4 @@
-
-import { useState } from "react";
-import "./App.css";
+import { useEffect, useState } from "react";
 
 // values of student that i want to upload.........
 const emptyStudentForm = {
