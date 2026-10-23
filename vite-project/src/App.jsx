@@ -110,8 +110,50 @@ function App() {
 
   // Stores the message displayed after deleting a student
   const [deleteMessage, setDeleteMessage] = useState("");
+  
+  // Load students from the backend when App first loads
+  useEffect(() => {
+    const controller = new AbortController();
 
+    const loadStudents = async () => {
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/students`,
+          { signal: controller.signal }
+        );
 
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+          throw new Error(
+            data.message || "Unable to load students."
+          );
+        }
+
+        // Convert MongoDB's _id into the id field
+        // used by our existing React components
+        const backendStudents = data.students.map((student) => ({
+          ...student,
+          id: String(student._id),
+        }));
+
+        setStudents(backendStudents);
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          console.error("Error loading students:", error);
+
+          setMessage(
+            "Could not load students. Check that the backend and MongoDB are running."
+          );
+        }
+      }
+    };
+
+    loadStudents();
+
+    // Cancel the request if the component is removed
+    return () => controller.abort();
+  }, []);
 
 
   // Runs whenever a form field changes
