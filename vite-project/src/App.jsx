@@ -86,6 +86,52 @@ function App() {
 
   // Stores attendance sessions saved during this app session
   const [attendanceRecords, setAttendanceRecords] = useState([]);
+  
+  // Load previously saved attendance when React starts
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const loadAttendance = async () => {
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/attendance`,
+          { signal: controller.signal }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+          throw new Error(
+            data.message || "Unable to load attendance."
+          );
+        }
+
+        // Convert MongoDB IDs into strings for React
+        const records = data.records.map((record) => ({
+          ...record,
+          id: String(record._id),
+          students: record.students.map((student) => ({
+            ...student,
+            studentId: String(student.studentId),
+          })),
+        }));
+
+        setAttendanceRecords(records);
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          console.error("Error loading attendance:", error);
+          setAttendanceMessage(
+            "Could not load saved attendance records."
+          );
+        }
+      }
+    };
+
+    loadAttendance();
+
+    return () => controller.abort();
+  }, []);
+
 
   // Tracks whether Show Student Records has been clicked
   const [hasSearchedAttendance, setHasSearchedAttendance] = useState(false);
@@ -401,18 +447,22 @@ const newAssignment = {
   };
   
   // Delete a student from the active student list
-  const handleDeleteStudent = (studentId) => {
+  
+  // Delete a student permanently through the backend API
+  const handleDeleteStudent = async (studentId) => {
+    const id = String(studentId);
+
     // Find the student selected for deletion
     const studentToDelete = students.find(
-      (student) => student.id === studentId
+      (student) => String(student.id) === id
     );
 
-    // Stop if the student does not exist
     if (!studentToDelete) {
+      setDeleteMessage("Student not found in the current list.");
       return;
     }
 
-    // Ask before deleting the record
+    // Ask for confirmation before deleting
     const shouldDelete = window.confirm(
       `Are you sure you want to delete ${studentToDelete.name}?`
     );
@@ -421,32 +471,63 @@ const newAssignment = {
       return;
     }
 
-    // Remove the selected student from the students array
-    setStudents((currentStudents) =>
-      currentStudents.filter(
-        (student) => student.id !== studentId
-      )
-    );
+    try {
+      // Send the DELETE request to Express
+      const response = await fetch(
+        `${API_BASE_URL}/students/${encodeURIComponent(id)}`,
+        {
+          method: "DELETE",
+        }
+      );
 
-    // Remove the student from any currently displayed attendance list
-    setAttendanceList((currentList) =>
-      currentList.filter(
-        (student) => student.id !== studentId
-      )
-    );
+      const data = await response.json();
 
-    // Remove the student's currently selected attendance status
-    setAttendanceStatus((currentStatus) => {
-      const updatedStatus = { ...currentStatus };
-      delete updatedStatus[studentId];
-      return updatedStatus;
-    });
+      // Do not update the UI if the backend reports an error
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.message || "Unable to delete student."
+        );
+      }
 
-    // Display the success message
-    setDeleteMessage(
-      `Student ${studentToDelete.name} deleted successfully.`
-    );
+      // Remove the deleted student from React state
+      setStudents((currentStudents) =>
+        currentStudents.filter(
+          (student) => String(student.id) !== id
+        )
+      );
+
+      // Remove the student from any currently displayed list
+      setAttendanceList((currentList) =>
+        currentList.filter(
+          (student) => String(student.id) !== id
+        )
+      );
+
+      // Remove the student's selected attendance status
+      setAttendanceStatus((currentStatus) => {
+        const updatedStatus = { ...currentStatus };
+        delete updatedStatus[id];
+        return updatedStatus;
+      });
+
+      // Clear the selected student if it matches the deleted record
+      setSelectedStudentId((currentId) =>
+        currentId === id ? "" : currentId
+      );
+
+      // Show the success message
+      setDeleteMessage(
+        `Student ${studentToDelete.name} deleted successfully.`
+      );
+    } catch (error) {
+      console.error("Error deleting student:", error);
+
+      setDeleteMessage(
+        error.message || "Could not delete student. Please try again."
+      );
+    }
   };
+
   
   
   // Handle Admin Login
