@@ -5,6 +5,7 @@ import mongoose from "mongoose";
 import "dotenv/config";
 
 import Student from "./models/Student.js";
+import Attendance from "./models/Attendance.js";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
