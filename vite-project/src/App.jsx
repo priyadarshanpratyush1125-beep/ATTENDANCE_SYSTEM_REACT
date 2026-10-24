@@ -11,6 +11,8 @@ const emptyStudentForm = {
 };
 // Address of our Express backend
 const API_BASE_URL = "http://localhost:5000/api";
+// Base address used to open files served by Express
+const BACKEND_BASE_URL = API_BASE_URL.replace(/\/api$/, "");
 
 function App() {
   //actually it controls whether the Add Student form is visible
@@ -196,12 +198,55 @@ function App() {
     };
 
     loadStudents();
+    
 
     // Cancel the request if the component is removed
     return () => controller.abort();
   }, []);
 
+  
+  // Load saved assignments from the backend
+  useEffect(() => {
+    const controller = new AbortController();
 
+    const loadAssignments = async () => {
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/assignments`,
+          { signal: controller.signal }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+          throw new Error(
+            data.message || "Unable to load assignments."
+          );
+        }
+
+        // Convert MongoDB documents for use in React
+        const backendAssignments = data.assignments.map(
+          (assignment) => ({
+            ...assignment,
+            id: String(assignment._id),
+            url: `${BACKEND_BASE_URL}${assignment.fileUrl}`,
+          })
+        );
+
+        setAssignments(backendAssignments);
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          console.error("Error loading assignments:", error);
+        }
+      }
+    };
+
+    loadAssignments();
+
+    return () => controller.abort();
+  }, []);
+
+  
   // Runs whenever a form field changes
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -452,38 +497,74 @@ function App() {
   };
 
   // Add the selected assignment to the current session
-  const handleUploadAssignment = (event) => {
+  
+  // Upload an assignment to the backend
+  const handleUploadAssignment = async (event) => {
     event.preventDefault();
 
     if (!selectedAssignment) {
-      setAssignmentMessage("Please select a PDF or image file first.");
+      setAssignmentMessage(
+        "Please select a PDF or image file first."
+      );
       return;
     }
 
-    
-const newAssignment = {
-  id: Date.now(),
-  name: selectedAssignment.name,
-  type: selectedAssignment.type,
-  size: selectedAssignment.size,
-  file: selectedAssignment,
-  url: URL.createObjectURL(selectedAssignment),
-};
+    // Keep the form reference before awaiting the request
+    const form = event.currentTarget;
 
+    try {
+      // Prepare the selected file for upload
+      const formData = new FormData();
+      formData.append("file", selectedAssignment);
 
-    setAssignments((currentAssignments) => [
-      ...currentAssignments,
-      newAssignment,
-    ]);
+      const response = await fetch(
+        `${API_BASE_URL}/assignments`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
 
-    setAssignmentMessage(
-      `Assignment uploaded successfully: ${selectedAssignment.name}. This demo stores it only for the current session.`
-    );
+      const data = await response.json();
 
-    // Clear the selected file after adding it
-    setSelectedAssignment(null);
-    event.currentTarget.reset();
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.message || "Unable to upload assignment."
+        );
+      }
+
+      // Use the assignment returned by the backend
+      const savedAssignment = {
+        ...data.assignment,
+        id: String(data.assignment._id),
+        url: `${BACKEND_BASE_URL}${data.assignment.fileUrl}`,
+      };
+
+      // Update the assignment list displayed in React
+      setAssignments((currentAssignments) => [
+        savedAssignment,
+        ...currentAssignments.filter(
+          (assignment) =>
+            String(assignment.id) !== savedAssignment.id
+        ),
+      ]);
+
+      setAssignmentMessage(
+        `Assignment uploaded successfully: ${savedAssignment.name}`
+      );
+
+      // Clear the file input after a successful upload
+      setSelectedAssignment(null);
+      form.reset();
+    } catch (error) {
+      console.error("Error uploading assignment:", error);
+
+      setAssignmentMessage(
+        error.message || "Unable to upload the assignment."
+      );
+    }
   };
+
   
   // Delete a student from the active student list
   
@@ -1016,8 +1097,8 @@ const newAssignment = {
     )}
 
     <p className="assignment-note">
-      Assignments are available for this session only.
-    </p>
+  Assignments are stored by the backend.
+</p>
   </section>
 )}
 
