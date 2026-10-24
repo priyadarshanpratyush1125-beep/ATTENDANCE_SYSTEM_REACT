@@ -85,6 +85,8 @@ app.use(
 
 // Read JSON sent by the frontend
 app.use(express.json());
+// Allow browser requests to retrieve uploaded files
+app.use("/uploads", express.static(uploadsDir));
 
 // Basic server test
 app.get("/", (req, res) => {
@@ -285,6 +287,91 @@ app.post("/api/students", async (req, res) => {
    }
  });
 
+
+ // GET: Retrieve assignment information from MongoDB
+ app.get("/api/assignments", async (_req, res) => {
+   try {
+     const assignments = await Assignment.find()
+       .sort({ createdAt: -1 })
+       .lean();
+
+     res.status(200).json({
+       success: true,
+       count: assignments.length,
+       assignments,
+     });
+   } catch (error) {
+     console.error("Error retrieving assignments:", error.message);
+
+     res.status(500).json({
+       success: false,
+       message: "Unable to retrieve assignments.",
+     });
+   }
+ });
+
+ // POST: Upload a file and save its information in MongoDB
+ app.post(
+   "/api/assignments",
+
+   // Handle a single file with the multipart field name "file"
+   (req, res, next) => {
+     upload.single("file")(req, res, (error) => {
+       if (error) {
+         const tooLarge =
+           error instanceof multer.MulterError &&
+           error.code === "LIMIT_FILE_SIZE";
+
+         return res.status(tooLarge ? 413 : 400).json({
+           success: false,
+           message: tooLarge
+             ? "File exceeds the 10 MB upload limit."
+             : error.message || "Unable to upload the file.",
+         });
+       }
+
+       next();
+     });
+   },
+
+   async (req, res) => {
+     if (!req.file) {
+       return res.status(400).json({
+         success: false,
+         message: "Please select a file.",
+       });
+     }
+
+     try {
+       const assignment = await Assignment.create({
+         name: req.file.originalname,
+         originalName: req.file.originalname,
+         storedName: req.file.filename,
+         mimeType: req.file.mimetype,
+         size: req.file.size,
+         fileUrl: `/uploads/${req.file.filename}`,
+       });
+
+       res.status(201).json({
+         success: true,
+         message: "Assignment uploaded successfully.",
+         assignment,
+       });
+     } catch (error) {
+       // Remove the stored file if saving its metadata fails
+       await fs.promises
+         .unlink(req.file.path)
+         .catch(() => {});
+
+       console.error("Error saving assignment:", error.message);
+
+       res.status(500).json({
+         success: false,
+         message: "Unable to save assignment information.",
+       });
+     }
+   }
+ );
 
 // Connect to MongoDB before starting Express
 
