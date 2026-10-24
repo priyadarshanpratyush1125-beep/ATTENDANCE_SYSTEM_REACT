@@ -1,4 +1,11 @@
 
+import fs from "node:fs";
+import path from "node:path";
+import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
+import multer from "multer";
+import Assignment from "./models/Assignment.js";
+
 import express from "express";
 import cors from "cors";
 import mongoose from "mongoose";
@@ -6,6 +13,65 @@ import "dotenv/config";
 
 import Student from "./models/Student.js";
 import Attendance from "./models/Attendance.js";
+
+
+ // Get the directory containing server.js
+ const __filename = fileURLToPath(import.meta.url);
+ const __dirname = path.dirname(__filename);
+
+ // Create the uploads directory if it does not exist
+ const uploadsDir = path.join(__dirname, "uploads");
+
+ fs.mkdirSync(uploadsDir, { recursive: true });
+
+ // Allow PDF and common image formats
+ const allowedTypesByExtension = {
+   ".pdf": "application/pdf",
+   ".jpg": "image/jpeg",
+   ".jpeg": "image/jpeg",
+   ".png": "image/png",
+   ".gif": "image/gif",
+   ".webp": "image/webp",
+   ".bmp": "image/bmp",
+ };
+
+ // Store files on disk with generated filenames
+ const storage = multer.diskStorage({
+   destination: (_req, _file, callback) => {
+     callback(null, uploadsDir);
+   },
+
+   filename: (_req, file, callback) => {
+     const extension = path.extname(file.originalname).toLowerCase();
+
+     callback(null, `${randomUUID()}${extension}`);
+   },
+ });
+
+ // Configure file limits and file type checks
+ const upload = multer({
+   storage,
+
+   limits: {
+     fileSize: 10 * 1024 * 1024,
+     files: 1,
+   },
+
+   fileFilter: (_req, file, callback) => {
+     const extension = path.extname(file.originalname).toLowerCase();
+     const expectedMimeType = allowedTypesByExtension[extension];
+
+     if (expectedMimeType && file.mimetype === expectedMimeType) {
+       callback(null, true);
+     } else {
+       callback(
+         new Error(
+           "Only PDF, JPG, JPEG, PNG, GIF, WEBP and BMP files are allowed."
+         )
+       );
+     }
+   },
+ });
 
 const app = express();
 const PORT = process.env.PORT || 5000;
