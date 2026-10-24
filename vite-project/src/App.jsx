@@ -320,7 +320,9 @@ function App() {
   };
 
   // Save attendance for the selected class, section, and date
-  const handleSaveAttendance = () => {
+  
+  // Save attendance through the backend API
+  const handleSaveAttendance = async () => {
     if (!attendanceFilters.date) {
       setAttendanceMessage("Please select an attendance date.");
       return;
@@ -342,46 +344,83 @@ function App() {
       return;
     }
 
-    const newRecord = {
-      id: Date.now(),
+    // Prepare the attendance data to send to Express
+    const payload = {
       date: attendanceFilters.date,
       className: attendanceFilters.className,
       section: attendanceFilters.section,
 
       students: attendanceList.map((student) => ({
-        studentId: student.id,
+        studentId: String(student.id),
         name: student.name,
         rollNo: student.rollNo,
         status: attendanceStatus[student.id],
       })),
     };
 
-    // Replace an existing record for the same class, section, and date
-    setAttendanceRecords((currentRecords) => {
-      const otherRecords = currentRecords.filter(
-        (record) =>
-          !(
-            record.className === newRecord.className &&
-            record.section === newRecord.section &&
-            record.date === newRecord.date
-          )
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/attendance`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        }
       );
 
-      return [...otherRecords, newRecord];
-    });
+      const data = await response.json();
 
-    const presentCount = attendanceList.filter(
-      (student) => attendanceStatus[student.id] === "Present"
-    ).length;
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.message || "Unable to save attendance."
+        );
+      }
 
-    const absentCount = attendanceList.filter(
-      (student) => attendanceStatus[student.id] === "Absent"
-    ).length;
+      // Use the attendance record returned by MongoDB
+      const savedRecord = {
+        ...data.record,
+        id: String(data.record._id),
+        students: data.record.students.map((student) => ({
+          ...student,
+          studentId: String(student.studentId),
+        })),
+      };
 
-    setAttendanceMessage(
-      `Attendance saved successfully! Present: ${presentCount}, Absent: ${absentCount}.`
-    );
+      // Replace the matching class/section/date session in React state
+      setAttendanceRecords((currentRecords) => [
+        savedRecord,
+        ...currentRecords.filter(
+          (record) =>
+            !(
+              record.date === savedRecord.date &&
+              record.className === savedRecord.className &&
+              record.section === savedRecord.section
+            )
+        ),
+      ]);
+
+      const presentCount = payload.students.filter(
+        (student) => student.status === "Present"
+      ).length;
+
+      const absentCount = payload.students.filter(
+        (student) => student.status === "Absent"
+      ).length;
+
+      setAttendanceMessage(
+        `Attendance saved successfully! Present: ${presentCount}, Absent: ${absentCount}.`
+      );
+    } catch (error) {
+      console.error("Error saving attendance:", error);
+
+      setAttendanceMessage(
+        error.message || "Unable to save attendance."
+      );
+    }
   };
+
   
   // Handle file selection
   const handleAssignmentFileChange = (event) => {
