@@ -111,6 +111,115 @@ app.post("/api/students", async (req, res) => {
   }
 });
 
+
+ // GET: Retrieve saved attendance sessions
+ app.get("/api/attendance", async (req, res) => {
+   try {
+     const records = await Attendance.find()
+       .sort({ date: -1, createdAt: -1 })
+       .lean();
+
+     res.status(200).json({
+       success: true,
+       count: records.length,
+       records,
+     });
+   } catch (error) {
+     console.error("Error retrieving attendance:", error.message);
+
+     res.status(500).json({
+       success: false,
+       message: "Unable to retrieve attendance records.",
+     });
+   }
+ });
+
+ // PUT: Save or update attendance for a class, section and date
+ app.put("/api/attendance", async (req, res) => {
+   try {
+     const { date, className, section, students } = req.body;
+
+     // Validate the required information
+     if (
+       !date ||
+       !["CSE", "ECE", "IT"].includes(className) ||
+       !["21", "22", "23"].includes(section) ||
+       !Array.isArray(students) ||
+       students.length === 0
+     ) {
+       return res.status(400).json({
+         success: false,
+         message: "Valid date, class, section and students are required.",
+       });
+     }
+
+     // Check every student's ID and attendance status
+     const invalidEntry = students.some(
+       (student) =>
+         !mongoose.isValidObjectId(student.studentId) ||
+         !["Present", "Absent"].includes(student.status)
+     );
+
+     if (invalidEntry) {
+       return res.status(400).json({
+         success: false,
+         message: "Every student needs a valid ID and attendance status.",
+       });
+     }
+
+     // Ensure all submitted students belong to this class and section
+     const uniqueIds = [
+       ...new Set(students.map((student) => String(student.studentId))),
+     ];
+
+     if (uniqueIds.length !== students.length) {
+       return res.status(400).json({
+         success: false,
+         message: "Duplicate students are not allowed.",
+       });
+     }
+
+     const matchingStudents = await Student.find({
+       _id: { $in: uniqueIds },
+       className,
+       section,
+     }).select("_id");
+
+     if (matchingStudents.length !== students.length) {
+       return res.status(400).json({
+         success: false,
+         message: "Some students do not belong to the selected class and section.",
+       });
+     }
+
+     // Save a new session or update the existing one
+     const record = await Attendance.findOneAndUpdate(
+       { date, className, section },
+       { $set: { students } },
+       {
+         new: true,
+         upsert: true,
+         runValidators: true,
+         setDefaultsOnInsert: true,
+       }
+     );
+
+     res.status(200).json({
+       success: true,
+       message: "Attendance saved successfully.",
+       record,
+     });
+   } catch (error) {
+     console.error("Error saving attendance:", error.message);
+
+     res.status(500).json({
+       success: false,
+       message: "Unable to save attendance.",
+     });
+   }
+ });
+
+
 // Connect to MongoDB before starting Express
 
  // DELETE: Remove a student from MongoDB
