@@ -1,4 +1,4 @@
-
+import adminRoutes from "./routes/adminRoutes.js";
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -85,6 +85,7 @@ app.use(
 
 // Read JSON sent by the frontend
 app.use(express.json());
+app.use("/api/admin", adminRoutes);
 // Allow browser requests to retrieve uploaded files
 app.use("/uploads", express.static(uploadsDir));
 
