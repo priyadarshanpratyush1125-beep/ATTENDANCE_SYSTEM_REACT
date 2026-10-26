@@ -9,6 +9,34 @@ const emptyStudentForm = {
   email: "",
   phone: "",
 };
+// Admin accounts defined directly in code
+const ADMIN_ACCOUNTS = [
+  {
+    name: "Ayushi Agarwal",
+    username: "ayushi.agarwal",
+    password: "admin123",
+  },
+  {
+    name: "Ravi Sikka",
+    username: "ravi.sikka",
+    password: "admin123",
+  },
+  {
+    name: "Alok Patel",
+    username: "alok.patel",
+    password: "admin123",
+  },
+  {
+    name: "Shipra Gautam",
+    username: "shipra.gautam",
+    password: "admin123",
+  },
+  {
+    name: "Anil Kumar Dubey",
+    username: "anil.dubey",
+    password: "admin123",
+  },
+];
 // Address of our Express backend
 const API_BASE_URL = "http://localhost:5000/api";
 // Base address used to open files served by Express
@@ -651,26 +679,31 @@ function App() {
   
   
   // Handle Admin Login
-  const handleAdminLogin = (event) => {
-    event.preventDefault();
+  // Handle Admin Login
+const handleAdminLogin = (event) => {
+  event.preventDefault();
 
-    // Temporary demo credentials
-    if (
-      adminUsername.trim() === "admin" &&
-      adminPassword === "admin123"
-    ) {
-      setIsLoginPageOpen(false);
-      setIsStudentDashboardOpen(false);
-      setLoginMessage("");
+  const matchedAdmin = ADMIN_ACCOUNTS.find(
+    (admin) =>
+      admin.username.toLowerCase() ===
+        adminUsername.trim().toLowerCase() &&
+      admin.password === adminPassword
+  );
 
-      setAdminUsername("");
-      setAdminPassword("");
-    } else {
-      setLoginMessage(
-        "Invalid Admin username or password."
-      );
-    }
-  };
+  if (matchedAdmin) {
+    setIsLoginPageOpen(false);
+    setIsStudentDashboardOpen(false);
+    setLoginMessage("");
+
+    setAdminUsername("");
+    setAdminPassword("");
+  } else {
+    setLoginMessage(
+      "Invalid Admin username or password."
+    );
+  }
+};
+
 
   
   // Handle Student Login
