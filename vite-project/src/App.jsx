@@ -66,6 +66,21 @@ function App() {
   // Stores Admin Login details
   const [adminUsername, setAdminUsername] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
+  // Controls the Register New Admin form
+const [isRegisterAdminOpen, setIsRegisterAdminOpen] =
+  useState(false);
+
+// Stores the new admin's form details
+const [adminRegisterForm, setAdminRegisterForm] = useState({
+  name: "",
+  username: "",
+  email: "",
+  password: "",
+});
+
+// Displays registration success or error messages
+const [adminRegistrationMessage, setAdminRegistrationMessage] =
+  useState("");
   // Stores the authentication token returned by the backend
   const [adminToken, setAdminToken] = useState(""); 
 
@@ -678,7 +693,58 @@ function App() {
     }
   };
 
-  
+// Register a new admin in MongoDB
+const handleRegisterAdmin = async (event) => {
+  event.preventDefault();
+  setAdminRegistrationMessage("");
+
+  if (!adminToken) {
+    setAdminRegistrationMessage(
+      "Please log in again before registering an admin."
+    );
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/admin/register`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify(adminRegisterForm),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(
+        data.message || "Unable to register the admin."
+      );
+    }
+
+    setAdminRegistrationMessage(
+      `Admin ${data.admin.name} registered successfully!`
+    );
+
+    // Clear the form after successful registration
+    setAdminRegisterForm({
+      name: "",
+      username: "",
+      email: "",
+      password: "",
+    });
+  } catch (error) {
+    console.error("Admin registration error:", error);
+
+    setAdminRegistrationMessage(
+      error.message || "Registration failed. Please try again."
+    );
+  }
+};
 // Handle Admin Login through the backend API
 const handleAdminLogin = async (event) => {
   event.preventDefault();
@@ -1189,6 +1255,18 @@ const handleAdminLogin = async (event) => {
 
       <main>
         <h2>Admin Dashboard</h2>
+        {/* Register New Admin button */}
+<button
+  type="button"
+  onClick={() => {
+    setIsRegisterAdminOpen((isOpen) => !isOpen);
+    setAdminRegistrationMessage("");
+  }}
+>
+  {isRegisterAdminOpen
+    ? "Close Registration Form"
+    : "Register New Admin"}
+</button>
         {/* Button to open or close the form */}
           <button
           type="button"
