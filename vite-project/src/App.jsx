@@ -66,6 +66,8 @@ function App() {
   // Stores Admin Login details
   const [adminUsername, setAdminUsername] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
+  // Stores the authentication token returned by the backend
+  const [adminToken, setAdminToken] = useState(""); 
 
   // Stores Student Login details
   const [studentLogin, setStudentLogin] = useState({
@@ -677,29 +679,50 @@ function App() {
   };
 
   
-  
-  // Handle Admin Login
-  // Handle Admin Login
-const handleAdminLogin = (event) => {
+// Handle Admin Login through the backend API
+const handleAdminLogin = async (event) => {
   event.preventDefault();
+  setLoginMessage("");
 
-  const matchedAdmin = ADMIN_ACCOUNTS.find(
-    (admin) =>
-      admin.username.toLowerCase() ===
-        adminUsername.trim().toLowerCase() &&
-      admin.password === adminPassword
-  );
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/admin/login`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username: adminUsername.trim(),
+          password: adminPassword,
+        }),
+      }
+    );
 
-  if (matchedAdmin) {
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(
+        data.message || "Invalid admin username or password."
+      );
+    }
+
+    // Save the token returned by the backend
+    setAdminToken(data.token);
+
+    // Open the existing Admin Dashboard
     setIsLoginPageOpen(false);
     setIsStudentDashboardOpen(false);
     setLoginMessage("");
 
+    // Clear the login fields
     setAdminUsername("");
     setAdminPassword("");
-  } else {
+  } catch (error) {
+    console.error("Admin login error:", error);
+
     setLoginMessage(
-      "Invalid Admin username or password."
+      error.message || "Unable to log in. Check the backend connection."
     );
   }
 };
@@ -837,11 +860,9 @@ const handleAdminLogin = (event) => {
               </button>
             </form>
 
-            <p className="login-hint">
-              Demo username: admin
-              <br />
-              Demo password: admin123
-            </p>
+           <p className="login-hint">
+               Use your registered admin username and password.
+          </p>
           </section>
 
           {/* Student Login section */}
