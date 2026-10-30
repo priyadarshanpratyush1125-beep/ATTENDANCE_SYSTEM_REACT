@@ -51,6 +51,18 @@ function App() {
 
   // Stores the students added during this session....
   const [students, setStudents] = useState([]);
+
+  // Excel file selected by the admin
+const [excelFile, setExcelFile] = useState(null);
+
+// Student records received from the Excel preview API
+const [excelPreview, setExcelPreview] = useState([]);
+
+// Message shown after uploading or reading Excel
+const [excelPreviewMessage, setExcelPreviewMessage] = useState("");
+
+// Loading status while reading Excel
+const [isExcelPreviewLoading, setIsExcelPreviewLoading] = useState(false);
   
   // Controls whether the Student Dashboard is open
   const [isStudentDashboardOpen, setIsStudentDashboardOpen] =
@@ -361,6 +373,80 @@ const [adminRegistrationMessage, setAdminRegistrationMessage] =
       );
     }
   };
+
+  
+  // Handle Excel file selection
+  const handleExcelFileChange = (event) => {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      setExcelFile(null);
+      return;
+    }
+
+    // Only accept Excel .xlsx files
+    if (!file.name.toLowerCase().endsWith(".xlsx")) {
+      setExcelFile(null);
+      setExcelPreview([]);
+      setExcelPreviewMessage("Please select an .xlsx Excel file.");
+      event.target.value = "";
+      return;
+    }
+
+    setExcelFile(file);
+    setExcelPreview([]);
+    setExcelPreviewMessage("");
+  };
+
+  
+  // Send the selected Excel file to backend for preview
+  const handlePreviewExcel = async () => {
+    if (!excelFile) {
+      setExcelPreviewMessage("Please select an Excel file first.");
+      return;
+    }
+
+    try {
+      setIsExcelPreviewLoading(true);
+      setExcelPreviewMessage("");
+
+      const formData = new FormData();
+      formData.append("file", excelFile);
+
+      const response = await fetch(
+        `${API_BASE_URL}/students/preview-excel`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.message || "Unable to read Excel file."
+        );
+      }
+
+      setExcelPreview(data.students);
+
+      setExcelPreviewMessage(
+        `${data.totalRecords} student records read successfully.`
+      );
+    } catch (error) {
+      console.error("Excel preview error:", error);
+
+      setExcelPreview([]);
+      setExcelPreviewMessage(
+        error.message || "Unable to read the Excel file."
+      );
+    } finally {
+      setIsExcelPreviewLoading(false);
+    }
+  };
+
+
 
   
   // Update the selected class, section, or date
