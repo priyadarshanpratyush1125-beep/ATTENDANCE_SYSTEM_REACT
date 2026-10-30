@@ -1,9 +1,11 @@
+import multer from "multer";
+import ExcelJS from "exceljs";
 import adminRoutes from "./routes/adminRoutes.js";
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import multer from "multer";
+
 import Assignment from "./models/Assignment.js";
 
 import express from "express";
@@ -72,6 +74,33 @@ import Attendance from "./models/Attendance.js";
      }
    },
  });
+
+ 
+// Separate upload configuration for Excel student files
+const excelUpload = multer({
+  // Keep the Excel file in memory instead of saving it to disk
+  storage: multer.memoryStorage(),
+
+  // Allow one Excel file up to 5 MB
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+    files: 1,
+  },
+
+  // Accept only .xlsx files
+  fileFilter: (_req, file, callback) => {
+    const extension = path.extname(file.originalname).toLowerCase();
+
+    if (extension === ".xlsx") {
+      callback(null, true);
+    } else {
+      callback(
+        new Error("Please upload an Excel .xlsx file only.")
+      );
+    }
+  },
+});
+
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -179,6 +208,203 @@ app.post("/api/students", async (req, res) => {
     });
   }
 });
+
+
+// Preview student records from an Excel file
+app.post(
+  "/api/students/preview-excel",
+
+  // Upload and validate the Excel file
+  (req, res, next) => {
+    excelUpload.single("file")(req, res, (error) => {
+      if (error) {
+        return res.status(400).json({
+          success: false,
+          message: error.message,
+        });
+      }
+
+      next();
+    });
+  },
+
+  async (req, res) => {
+    try {
+      // Check whether an Excel file was uploaded
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          message: "Please select an Excel file.",
+        });
+      }
+
+      // Create a workbook and read the uploaded Excel file
+      const workbook = new ExcelJS.Workbook();
+
+      await workbook.xlsx.load(req.file.buffer);
+
+      // Read the first worksheet
+      const worksheet = workbook.worksheets[0];
+
+      if (!worksheet) {
+        return res.status(400).json({
+          success: false,
+          message: "No worksheet found in the Excel file.",
+        });
+      }
+
+      // Convert Excel headings into a standard format
+      const normalizeHeader = (value) =>
+        String(value || "")
+          .trim()
+          .toLowerCase()
+          .replace(/[\s_-]+/g, "");
+
+      // Supported headings for each student field
+      const requiredColumns = {
+        name: ["studentname", "name"],
+        className: ["class", "classname"],
+        section: ["section"],
+        rollNo: ["rollnumber", "rollno", "roll"],
+        email: ["email", "emailaddress"],
+        phone: ["phonenumber", "phone", "mobile"],
+      };
+
+      // Find the column numbers using the first row
+      const headerMap = {};
+
+      worksheet.getRow(1).eachCell((cell, columnNumber) => {
+        const heading = normalizeHeader(cell.text);
+        headerMap[heading] = columnNumber;
+      });
+
+      // Match the actual Excel headings to student fields
+      const columnNumbers = {};
+
+      for (const [field, possibleNames] of Object.entries(
+        requiredColumns
+      )) {
+        const matchedHeading = possibleNames.find(
+          (heading) => headerMap[heading] !== undefined
+        );
+
+        if (matchedHeading) {
+          columnNumbers[field] = headerMap[matchedHeading];
+        }
+      }
+
+      // Find any missing headings
+      const missingColumns = Object.keys(requiredColumns).filter(
+        (field) => columnNumbers[field] === undefined
+      );
+
+      if (missingColumns.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Required Excel columns are missing.",
+          missingColumns,
+        });
+      }
+
+      // Generate username from the student's full name
+      const generateUsername = (name) => {
+        return name
+          .toLowerCase()
+          .normalize("NFKD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-z0-9]+/g, "_")
+          .replace(/^_+|_+$/g, "");
+      };
+
+      const students = [];
+      const usedUsernames = new Set();
+
+      // Read all student rows, starting from row 2
+      for (
+        let rowNumber = 2;
+        rowNumber <= worksheet.rowCount;
+        rowNumber++
+      ) {
+        const row = worksheet.getRow(rowNumber);
+
+        const getValue = (field) =>
+          String(
+            row.getCell(columnNumbers[field]).text || ""
+          ).trim();
+
+        const student = {
+          name: getValue("name"),
+          className: getValue("className").toUpperCase(),
+          section: getValue("section"),
+          rollNo: getValue("rollNo"),
+          email: getValue("email").toLowerCase(),
+          phone: getValue("phone"),
+        };
+
+        // Ignore completely empty rows
+        if (Object.values(student).every((value) => !value)) {
+          continue;
+        }
+
+        // Generate a username from the full name
+        const baseUsername = generateUsername(student.name);
+
+        let username = baseUsername;
+
+        // Handle repeated names within this Excel file
+        if (usedUsernames.has(username)) {
+          username = `${baseUsername}_${student.rollNo}`;
+        }
+
+        // Handle any remaining username collision
+        let attempt = 1;
+
+        while (usedUsernames.has(username)) {
+          username = `${baseUsername}_${student.rollNo}_${attempt}`;
+          attempt++;
+        }
+
+        usedUsernames.add(username);
+
+        students.push({
+          ...student,
+
+          // Generated student login credentials
+          username,
+
+          // Roll number will be the initial password
+          initialPassword: student.rollNo,
+
+          // Excel row number helps identify invalid records later
+          excelRow: rowNumber,
+        });
+      }
+
+      if (students.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: "No student records found in the Excel file.",
+        });
+      }
+
+      // Return student records to React for preview
+      return res.json({
+        success: true,
+        message: "Excel file read successfully.",
+        totalRecords: students.length,
+        students,
+      });
+    } catch (error) {
+      console.error("Excel preview error:", error);
+
+      return res.status(400).json({
+        success: false,
+        message: "Unable to read the Excel file. Please check its format.",
+      });
+    }
+  }
+);
+
 
 
  // GET: Retrieve saved attendance sessions
