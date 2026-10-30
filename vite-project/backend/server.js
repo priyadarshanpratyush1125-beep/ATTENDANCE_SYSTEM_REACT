@@ -14,6 +14,7 @@ import mongoose from "mongoose";
 import "dotenv/config";
 
 import Student from "./models/Student.js";
+import bcrypt from "bcryptjs";
 import Attendance from "./models/Attendance.js";
 
 
@@ -404,6 +405,269 @@ app.post(
     }
   }
 );
+
+
+// Import multiple students into MongoDB after Excel preview
+app.post("/api/students/import-excel", async (req, res) => {
+  try {
+    const incomingStudents = req.body.students;
+
+    // Check whether student records were received
+    if (
+      !Array.isArray(incomingStudents) ||
+      incomingStudents.length === 0
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "No student records received.",
+      });
+    }
+
+    // Prevent excessively large import requests
+    if (incomingStudents.length > 500) {
+      return res.status(400).json({
+        success: false,
+        message: "Import a maximum of 500 students at a time.",
+      });
+    }
+
+    const validStudents = [];
+    const skippedRecords = [];
+
+    const seenRollNumbers = new Set();
+    const seenEmails = new Set();
+
+    // Validate each student received from the preview
+    for (let index = 0; index < incomingStudents.length; index++) {
+      const item = incomingStudents[index];
+      const excelRow = Number(item.excelRow) || index + 2;
+
+      const student = {
+        name: String(item.name || "").trim(),
+        className: String(item.className || "").trim().toUpperCase(),
+        section: String(item.section || "").trim(),
+        rollNo: String(item.rollNo || "").trim(),
+        email: String(item.email || "").trim().toLowerCase(),
+        phone: String(item.phone || "").trim(),
+      };
+
+      const errors = [];
+
+      if (!student.name) errors.push("Student name is missing");
+      if (!student.rollNo) errors.push("Roll number is missing");
+      if (!student.email) errors.push("Email is missing");
+      if (!student.phone) errors.push("Phone number is missing");
+
+      if (!["CSE", "ECE", "IT"].includes(student.className)) {
+        errors.push("Invalid class");
+      }
+
+      if (!["21", "22", "23"].includes(student.section)) {
+        errors.push("Invalid section");
+      }
+
+      if (!/^\d+$/.test(student.rollNo)) {
+        errors.push("Roll number must contain digits only");
+      }
+
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(student.email)) {
+        errors.push("Invalid email address");
+      }
+
+      if (!/^\d{10,15}$/.test(student.phone)) {
+        errors.push("Phone number must contain 10–15 digits");
+      }
+
+      if (errors.length > 0) {
+        skippedRecords.push({
+          excelRow,
+          name: student.name,
+          reason: errors.join(", "),
+        });
+        continue;
+      }
+
+      // Check duplicates inside the uploaded Excel file
+      if (
+        seenRollNumbers.has(student.rollNo) ||
+        seenEmails.has(student.email)
+      ) {
+        skippedRecords.push({
+          excelRow,
+          name: student.name,
+          reason: "Duplicate roll number or email in this Excel file",
+        });
+        continue;
+      }
+
+      seenRollNumbers.add(student.rollNo);
+      seenEmails.add(student.email);
+
+      validStudents.push({
+        ...student,
+        excelRow,
+      });
+    }
+
+    if (validStudents.length === 0) {
+      return res.status(200).json({
+        success: true,
+        importedCount: 0,
+        skippedCount: skippedRecords.length,
+        skippedRecords,
+        message: "No valid student records available to import.",
+      });
+    }
+
+    // Check whether these roll numbers or emails already exist
+    const rollNumbers = validStudents.map((s) => s.rollNo);
+
+    const emailPatterns = validStudents.map(
+      (s) => new RegExp(
+        "^" + s.email.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$",
+        "i"
+      )
+    );
+
+    const existingStudents = await Student.find({
+      $or: [
+        { rollNo: { $in: rollNumbers } },
+        { email: { $in: emailPatterns } },
+      ],
+    })
+      .select("rollNo email")
+      .lean();
+
+    const existingRollNumbers = new Set(
+      existingStudents.map((s) => String(s.rollNo))
+    );
+
+    const existingEmails = new Set(
+      existingStudents.map((s) => String(s.email).toLowerCase())
+    );
+
+    // Collect usernames already present in MongoDB
+    const existingUsernameRecords = await Student.find({
+      username: { $exists: true, $ne: "" },
+    })
+      .select("username")
+      .lean();
+
+    const usedUsernames = new Set(
+      existingUsernameRecords.map((s) => s.username)
+    );
+
+    // Convert full name into a username
+    const generateUsername = (name) => {
+      return name
+        .toLowerCase()
+        .normalize("NFKD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "");
+    };
+
+    const recordsToInsert = [];
+
+    for (const student of validStudents) {
+      const { excelRow, ...studentData } = student;
+
+      // Skip students already present in MongoDB
+      if (
+        existingRollNumbers.has(student.rollNo) ||
+        existingEmails.has(student.email)
+      ) {
+        skippedRecords.push({
+          excelRow,
+          name: student.name,
+          reason: "Roll number or email already exists in MongoDB",
+        });
+        continue;
+      }
+
+      // Generate a username from the full name
+      const baseUsername =
+        generateUsername(student.name) || `student_${student.rollNo}`;
+
+      let username = baseUsername;
+
+      // Append roll number if username is already taken
+      if (usedUsernames.has(username)) {
+        username = `${baseUsername}_${student.rollNo}`;
+      }
+
+      let suffix = 1;
+
+      while (usedUsernames.has(username)) {
+        username = `${baseUsername}_${student.rollNo}_${suffix}`;
+        suffix++;
+      }
+
+      usedUsernames.add(username);
+
+      // Roll number becomes the initial password
+      const passwordHash = await bcrypt.hash(student.rollNo, 12);
+
+      recordsToInsert.push({
+        ...studentData,
+        username,
+        passwordHash,
+        mustChangePassword: true,
+      });
+    }
+
+    if (recordsToInsert.length === 0) {
+      return res.status(200).json({
+        success: true,
+        importedCount: 0,
+        skippedCount: skippedRecords.length,
+        skippedRecords,
+        message: "All records were skipped. No students were imported.",
+      });
+    }
+
+    // Save all prepared student records in MongoDB
+    let savedStudents = [];
+
+    try {
+      savedStudents = await Student.insertMany(
+        recordsToInsert,
+        { ordered: false }
+      );
+    } catch (insertError) {
+      // Some records may still have been saved successfully
+      savedStudents = insertError.insertedDocs || [];
+
+      console.error("Some student records could not be saved:", insertError);
+    }
+
+    const importedCount = savedStudents.length;
+
+    // Return the import report to React
+    return res.status(importedCount > 0 ? 201 : 200).json({
+      success: true,
+      message: "Student import process completed.",
+      importedCount,
+      skippedCount: skippedRecords.length,
+      skippedRecords,
+
+      importedStudents: savedStudents.map((student) => ({
+        id: String(student._id),
+        name: student.name,
+        username: student.username,
+        rollNo: student.rollNo,
+      })),
+    });
+  } catch (error) {
+    console.error("Bulk student import error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to import students into MongoDB.",
+    });
+  }
+});
+
 
 
 
