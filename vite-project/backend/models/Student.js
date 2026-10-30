@@ -42,6 +42,30 @@ const studentSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+
+    
+    // Automatically generated student login username
+    username: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      unique: true,
+      sparse: true,
+    },
+
+    // Store the hashed initial password, never plain text
+    passwordHash: {
+      type: String,
+      select: false,
+    },
+
+    // Student must change the initial password on first login
+    mustChangePassword: {
+      type: Boolean,
+      default: true,
+    },
+
+
   },
   {
     timestamps: true,
