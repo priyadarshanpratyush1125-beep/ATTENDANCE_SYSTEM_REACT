@@ -99,9 +99,25 @@ router.post("/login", async (req, res) => {
 
 // Register a new admin.
 // Only an already authenticated admin can use this route.
-router.post("/register", requireAdmin, async (req, res) => {
+router.post("/register", async (req, res) => {
   try {
-    const { name, username, email, password } = req.body;
+    const {
+  name,
+  username,
+  email,
+  password,
+  registrationKey,
+} = req.body;
+
+if (
+  !process.env.ADMIN_REGISTRATION_KEY ||
+  registrationKey !== process.env.ADMIN_REGISTRATION_KEY
+) {
+  return res.status(403).json({
+    success: false,
+    message: "Invalid registration invite key.",
+  });
+}
 
     if (
       !name?.trim() ||

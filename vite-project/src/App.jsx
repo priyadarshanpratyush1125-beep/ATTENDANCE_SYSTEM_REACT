@@ -76,6 +76,7 @@ const [adminRegisterForm, setAdminRegisterForm] = useState({
   username: "",
   email: "",
   password: "",
+  registrationKey: "",
 });
 
 // Displays registration success or error messages
@@ -694,16 +695,10 @@ const [adminRegistrationMessage, setAdminRegistrationMessage] =
   };
 
 // Register a new admin in MongoDB
+// Register a new admin from the Login Page
 const handleRegisterAdmin = async (event) => {
   event.preventDefault();
   setAdminRegistrationMessage("");
-
-  if (!adminToken) {
-    setAdminRegistrationMessage(
-      "Please log in again before registering an admin."
-    );
-    return;
-  }
 
   try {
     const response = await fetch(
@@ -712,7 +707,6 @@ const handleRegisterAdmin = async (event) => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${adminToken}`,
         },
         body: JSON.stringify(adminRegisterForm),
       }
@@ -730,12 +724,12 @@ const handleRegisterAdmin = async (event) => {
       `Admin ${data.admin.name} registered successfully!`
     );
 
-    // Clear the form after successful registration
     setAdminRegisterForm({
       name: "",
       username: "",
       email: "",
       password: "",
+      registrationKey: "",
     });
   } catch (error) {
     console.error("Admin registration error:", error);
@@ -893,6 +887,7 @@ const handleAdminLogin = async (event) => {
           {/* Admin Login section */}
           <section className="login-card">
             <h2>Admin Login</h2>
+            
 
             <form onSubmit={handleAdminLogin}>
               <label>
@@ -926,9 +921,121 @@ const handleAdminLogin = async (event) => {
               </button>
             </form>
 
-           <p className="login-hint">
-               Use your registered admin username and password.
-          </p>
+<p className="login-hint">
+  Use your registered admin username and password.
+</p>
+                  {/* Register New Admin button */}
+<button
+  type="button"
+  onClick={() => {
+    setIsRegisterAdminOpen((isOpen) => !isOpen);
+    setAdminRegistrationMessage("");
+  }}
+>
+  {isRegisterAdminOpen
+    ? "Close Registration Form"
+    : "Register New Admin"}
+</button>
+
+{/* Registration form on the Login Page */}
+
+{/* Registration form on the Login Page */}
+{isRegisterAdminOpen && (
+  <section className="form-section">
+    <h3>Register New Admin</h3>
+
+    <form onSubmit={handleRegisterAdmin}>
+      <label>
+        Admin Name
+        <input
+          type="text"
+          value={adminRegisterForm.name}
+          onChange={(event) =>
+            setAdminRegisterForm((current) => ({
+              ...current,
+              name: event.target.value,
+            }))
+          }
+          placeholder="Enter full name"
+          required
+        />
+      </label>
+
+      <label>
+        Username
+        <input
+          type="text"
+          value={adminRegisterForm.username}
+          onChange={(event) =>
+            setAdminRegisterForm((current) => ({
+              ...current,
+              username: event.target.value,
+            }))
+          }
+          placeholder="Choose a username"
+          required
+        />
+      </label>
+
+      <label>
+        Email
+        <input
+          type="email"
+          value={adminRegisterForm.email}
+          onChange={(event) =>
+            setAdminRegisterForm((current) => ({
+              ...current,
+              email: event.target.value,
+            }))
+          }
+          placeholder="Enter email address"
+          required
+        />
+      </label>
+
+      <label>
+        Password
+        <input
+          type="password"
+          value={adminRegisterForm.password}
+          onChange={(event) =>
+            setAdminRegisterForm((current) => ({
+              ...current,
+              password: event.target.value,
+            }))
+          }
+          placeholder="Create a password"
+          minLength={8}
+          required
+        />
+      </label>
+
+      <label>
+        Registration Invite Key
+        <input
+          type="password"
+          value={adminRegisterForm.registrationKey}
+          onChange={(event) =>
+            setAdminRegisterForm((current) => ({
+              ...current,
+              registrationKey: event.target.value,
+            }))
+          }
+          placeholder="Enter your invite key"
+          required
+        />
+      </label>
+
+      <button type="submit">Register Admin</button>
+    </form>
+
+    {adminRegistrationMessage && (
+      <p role="status">{adminRegistrationMessage}</p>
+    )}
+  </section>
+)}
+
+
           </section>
 
           {/* Student Login section */}
@@ -1255,18 +1362,6 @@ const handleAdminLogin = async (event) => {
 
       <main>
         <h2>Admin Dashboard</h2>
-        {/* Register New Admin button */}
-<button
-  type="button"
-  onClick={() => {
-    setIsRegisterAdminOpen((isOpen) => !isOpen);
-    setAdminRegistrationMessage("");
-  }}
->
-  {isRegisterAdminOpen
-    ? "Close Registration Form"
-    : "Register New Admin"}
-</button>
         {/* Button to open or close the form */}
           <button
           type="button"
@@ -1313,8 +1408,6 @@ const handleAdminLogin = async (event) => {
 >
   Delete Student
 </button>
-
-
 
   <p className="record-count">
     Attendance sessions saved in this session: {attendanceRecords.length}
