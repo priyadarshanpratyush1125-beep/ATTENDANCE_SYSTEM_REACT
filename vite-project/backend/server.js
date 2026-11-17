@@ -567,54 +567,85 @@ app.post("/api/students/import-excel", async (req, res) => {
         .replace(/^_+|_+$/g, "");
     };
 
-    const recordsToInsert = [];
+    
+// Prepare valid student records before hashing passwords
+const preparedStudents = [];
 
-    for (const student of validStudents) {
-      const { excelRow, ...studentData } = student;
+for (const student of validStudents) {
+  const { excelRow, ...studentData } = student;
 
-      // Skip students already present in MongoDB
-      if (
-        existingRollNumbers.has(student.rollNo) ||
-        existingEmails.has(student.email)
-      ) {
-        skippedRecords.push({
-          excelRow,
-          name: student.name,
-          reason: "Roll number or email already exists in MongoDB",
-        });
-        continue;
-      }
+  // Skip students already present in MongoDB
+  if (
+    existingRollNumbers.has(student.rollNo) ||
+    existingEmails.has(student.email)
+  ) {
+    skippedRecords.push({
+      excelRow,
+      name: student.name,
+      reason: "Roll number or email already exists in MongoDB",
+    });
+    continue;
+  }
 
-      // Generate a username from the full name
-      const baseUsername =
-        generateUsername(student.name) || `student_${student.rollNo}`;
+  // Generate a username from the student's full name
+  const baseUsername =
+    generateUsername(student.name) || `student_${student.rollNo}`;
 
-      let username = baseUsername;
+  let username = baseUsername;
 
-      // Append roll number if username is already taken
-      if (usedUsernames.has(username)) {
-        username = `${baseUsername}_${student.rollNo}`;
-      }
+  if (usedUsernames.has(username)) {
+    username = `${baseUsername}_${student.rollNo}`;
+  }
 
-      let suffix = 1;
+  let suffix = 1;
 
-      while (usedUsernames.has(username)) {
-        username = `${baseUsername}_${student.rollNo}_${suffix}`;
-        suffix++;
-      }
+  while (usedUsernames.has(username)) {
+    username = `${baseUsername}_${student.rollNo}_${suffix}`;
+    suffix++;
+  }
 
-      usedUsernames.add(username);
+  usedUsernames.add(username);
 
-      // Roll number becomes the initial password
-      const passwordHash = await bcrypt.hash(student.rollNo, 12);
+  preparedStudents.push({
+    ...studentData,
+    username,
+  });
+}
 
-      recordsToInsert.push({
-        ...studentData,
-        username,
-        passwordHash,
-        mustChangePassword: true,
-      });
-    }
+// Hash passwords in small batches instead of one by one
+const recordsToInsert = [];
+const BATCH_SIZE = 20;
+
+for (
+  let i = 0;
+  i < preparedStudents.length;
+  i += BATCH_SIZE
+) {
+  const batch = preparedStudents.slice(i, i + BATCH_SIZE);
+
+  console.log(
+    `Hashing student passwords: ${Math.min(
+      i + BATCH_SIZE,
+      preparedStudents.length
+    )}/${preparedStudents.length}`
+  );
+
+  const hashedBatch = await Promise.all(
+    batch.map(async (student) => ({
+      ...student,
+      passwordHash: await bcrypt.hash(student.rollNo, 10),
+      mustChangePassword: true,
+    }))
+  );
+
+  recordsToInsert.push(...hashedBatch);
+}
+
+console.log(
+  `Password hashing completed. Saving ${recordsToInsert.length} students.`
+);
+
+
 
     if (recordsToInsert.length === 0) {
       return res.status(200).json({
