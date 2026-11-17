@@ -1543,15 +1543,35 @@ setLoggedInAdmin(data.admin);
       </header>
       
   
+
 <button
   type="button"
   onClick={() => {
+    // Remove the saved admin session
+    sessionStorage.removeItem("adminToken");
+    sessionStorage.removeItem("adminUser");
+
+    // Clear React authentication states
+    setAdminToken("");
+    setLoggedInAdmin(null);
+
+    // Return to the Login Page
     setIsLoginPageOpen(true);
+    setIsStudentDashboardOpen(false);
+
+    // Clear login messages
     setLoginMessage("");
+
+    // Close any open admin sections
+    setIsAddStudentOpen(false);
+    setIsAttendanceOpen(false);
+    setIsAssignmentOpen(false);
+    setIsDeleteStudentOpen(false);
   }}
 >
   Logout
 </button>
+
 
 
 
