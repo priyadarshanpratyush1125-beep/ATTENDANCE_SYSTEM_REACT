@@ -63,6 +63,8 @@ const [excelPreviewMessage, setExcelPreviewMessage] = useState("");
 
 // Loading status while reading Excel
 const [isExcelPreviewLoading, setIsExcelPreviewLoading] = useState(false);
+// Tracks whether students are currently being imported
+const [isExcelImporting, setIsExcelImporting] = useState(false);
   
   // Controls whether the Student Dashboard is open
   const [isStudentDashboardOpen, setIsStudentDashboardOpen] =
@@ -447,6 +449,87 @@ const [adminRegistrationMessage, setAdminRegistrationMessage] =
   };
 
 
+
+  // Import Excel student records into MongoDB
+  const handleImportExcel = async () => {
+    if (excelPreview.length === 0) {
+      setExcelPreviewMessage("Please preview an Excel file first.");
+      return;
+    }
+
+    try {
+      setIsExcelImporting(true);
+      setExcelPreviewMessage("Importing students into MongoDB...");
+
+      const response = await fetch(
+        `${API_BASE_URL}/students/import-excel`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            students: excelPreview,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.message || "Unable to import students."
+        );
+      }
+
+      // Find the complete records corresponding to successfully imported students
+      const importedStudents = (data.importedStudents || []).map(
+        (record) => {
+          const originalRecord = excelPreview.find(
+            (student) =>
+              String(student.rollNo) === String(record.rollNo)
+          );
+
+          return {
+            ...originalRecord,
+            ...record,
+            id: String(record.id),
+          };
+        }
+      );
+
+      // Update the Added Students table immediately
+      const importedRollNumbers = new Set(
+        importedStudents.map((student) => String(student.rollNo))
+      );
+
+      setStudents((currentStudents) => [
+        ...importedStudents,
+        ...currentStudents.filter(
+          (student) =>
+            !importedRollNumbers.has(String(student.rollNo))
+        ),
+      ]);
+
+      // Display the import result
+      setExcelPreviewMessage(
+        `Import completed! Added: ${data.importedCount}, Skipped: ${data.skippedCount}.`
+      );
+
+      // Clear the preview after importing
+      setExcelPreview([]);
+      setExcelFile(null);
+
+    } catch (error) {
+      console.error("Student import error:", error);
+
+      setExcelPreviewMessage(
+        error.message || "Unable to import students."
+      );
+    } finally {
+      setIsExcelImporting(false);
+    }
+  };
 
   
   // Update the selected class, section, or date
@@ -1500,89 +1583,145 @@ const handleAdminLogin = async (event) => {
   </p>
 
         {/* Display the form only when the button is clicked */}
-        {isAddStudentOpen && (
-          <section className="form-section">
-            <h3>Add Student</h3>
+        
+{isAddStudentOpen && (
+  <section className="form-section">
+    <h3>Add Student</h3>
 
-            <form onSubmit={handleSaveStudent}>
-              <label>
-                Student Name
-                <input
-                  type="text"
-                  name="name"
-                  value={studentForm.name}
-                  onChange={handleChange}
-                  required
-                />
-              </label>
+    <form onSubmit={handleSaveStudent}>
+      <label>
+        Student Name
+        <input
+          type="text"
+          name="name"
+          value={studentForm.name}
+          onChange={handleChange}
+          required
+        />
+      </label>
 
-              <label>
-                Class
-                <select
-                  name="className"
-                  value={studentForm.className}
-                  onChange={handleChange}
-                  required
-                >
-                  <option value="CSE">CSE</option>
-                  <option value="ECE">ECE</option>
-                  <option value="IT">IT</option>
-                </select>
-              </label>
+      <label>
+        Class
+        <select
+          name="className"
+          value={studentForm.className}
+          onChange={handleChange}
+          required
+        >
+          <option value="CSE">CSE</option>
+          <option value="ECE">ECE</option>
+          <option value="IT">IT</option>
+        </select>
+      </label>
 
-              <label>
-                Section
-                <select
-                  name="section"
-                  value={studentForm.section}
-                  onChange={handleChange}
-                  required
-                >
-                  <option value="21">21</option>
-                  <option value="22">22</option>
-                  <option value="23">23</option>
-                </select>
-              </label>
+      <label>
+        Section
+        <select
+          name="section"
+          value={studentForm.section}
+          onChange={handleChange}
+          required
+        >
+          <option value="21">21</option>
+          <option value="22">22</option>
+          <option value="23">23</option>
+        </select>
+      </label>
 
-              <label>
-                Roll Number
-                <input
-                  type="text"
-                  name="rollNo"
-                  value={studentForm.rollNo}
-                  onChange={handleChange}
-                  required
-                />
-              </label>
+      <label>
+        Roll Number
+        <input
+          type="text"
+          name="rollNo"
+          value={studentForm.rollNo}
+          onChange={handleChange}
+          required
+        />
+      </label>
 
-              <label>
-                Email
-                <input
-                  type="email"
-                  name="email"
-                  value={studentForm.email}
-                  onChange={handleChange}
-                  required
-                />
-              </label>
+      <label>
+        Email
+        <input
+          type="email"
+          name="email"
+          value={studentForm.email}
+          onChange={handleChange}
+          required
+        />
+      </label>
 
-              <label>
-                Phone Number
-                <input
-                  type="tel"
-                  name="phone"
-                  value={studentForm.phone}
-                  onChange={handleChange}
-                  required
-                />
-              </label>
+      <label>
+        Phone Number
+        <input
+          type="tel"
+          name="phone"
+          value={studentForm.phone}
+          onChange={handleChange}
+          required
+        />
+      </label>
 
-              <button type="submit">
-                Save Student
-              </button>
-            </form>
-          </section>
-        )}
+      <button type="submit">
+        Save Student
+      </button>
+    </form>
+
+    {/* Excel bulk upload section */}
+    <div className="excel-import-section">
+      <h3>Import Multiple Students from Excel</h3>
+
+      <p>
+        Upload an Excel file to add multiple students automatically.
+      </p>
+
+      <label htmlFor="studentExcelFile">
+        Select Student Excel File (.xlsx)
+      </label>
+
+      <input
+        id="studentExcelFile"
+        type="file"
+        accept=".xlsx"
+        onChange={handleExcelFileChange}
+      />
+
+      {excelFile && (
+        <p>Selected file: {excelFile.name}</p>
+      )}
+
+      <button
+        type="button"
+        onClick={handlePreviewExcel}
+        disabled={!excelFile || isExcelPreviewLoading}
+      >
+        {isExcelPreviewLoading
+          ? "Reading Excel..."
+          : "Preview Excel Students"}
+      </button>
+
+      {excelPreviewMessage && (
+        <p role="status">
+          {excelPreviewMessage}
+        </p>
+      )}
+
+      
+{excelPreview.length > 0 && (
+  <button
+    type="button"
+    onClick={handleImportExcel}
+    disabled={isExcelImporting}
+  >
+    {isExcelImporting
+      ? "Importing Students..."
+      : `Import ${excelPreview.length} Students to Database`}
+  </button>
+)}
+
+    </div>
+  </section>
+)}
+
         {/*Show a message after saving.....*/}
         {message && (
           <p className="success-message" role="status">
