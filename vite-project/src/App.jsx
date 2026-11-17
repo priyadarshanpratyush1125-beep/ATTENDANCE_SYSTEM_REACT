@@ -72,7 +72,9 @@ const [isExcelImporting, setIsExcelImporting] = useState(false);
 
   
   // Controls whether the Login Page is visible
-  const [isLoginPageOpen, setIsLoginPageOpen] = useState(true);
+  const [isLoginPageOpen, setIsLoginPageOpen] = useState(
+  () => !sessionStorage.getItem("adminToken")
+);
 
   // Stores messages displayed on the Login Page
   const [loginMessage, setLoginMessage] = useState("");
@@ -97,7 +99,21 @@ const [adminRegisterForm, setAdminRegisterForm] = useState({
 const [adminRegistrationMessage, setAdminRegistrationMessage] =
   useState("");
   // Stores the authentication token returned by the backend
-  const [adminToken, setAdminToken] = useState(""); 
+  // Restore admin token after browser refresh
+const [adminToken, setAdminToken] = useState(
+  () => sessionStorage.getItem("adminToken") || ""
+);
+
+// Store the currently logged-in admin's details
+const [loggedInAdmin, setLoggedInAdmin] = useState(() => {
+  try {
+    return JSON.parse(
+      sessionStorage.getItem("adminUser") || "null"
+    );
+  } catch {
+    return null;
+  }
+}); 
 
   // Stores Student Login details
   const [studentLogin, setStudentLogin] = useState({
@@ -937,7 +953,17 @@ const handleAdminLogin = async (event) => {
     }
 
     // Save the token returned by the backend
-    setAdminToken(data.token);
+    // Save admin session in browser session storage
+sessionStorage.setItem("adminToken", data.token);
+
+sessionStorage.setItem(
+  "adminUser",
+  JSON.stringify(data.admin)
+);
+
+// Update React states
+setAdminToken(data.token);
+setLoggedInAdmin(data.admin);
 
     // Open the existing Admin Dashboard
     setIsLoginPageOpen(false);
