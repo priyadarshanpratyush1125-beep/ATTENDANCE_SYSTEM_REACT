@@ -1,3 +1,4 @@
+import studentAuthRoutes from "./routes/studentAuthRoutes.js";
 import multer from "multer";
 import ExcelJS from "exceljs";
 import adminRoutes from "./routes/adminRoutes.js";
@@ -115,6 +116,7 @@ app.use(
 
 // Read JSON sent by the frontend
 app.use(express.json());
+app.use("/api/student-auth", studentAuthRoutes);
 app.use("/api/admin", adminRoutes);
 // Allow browser requests to retrieve uploaded files
 app.use("/uploads", express.static(uploadsDir));

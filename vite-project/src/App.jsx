@@ -68,12 +68,14 @@ const [isExcelImporting, setIsExcelImporting] = useState(false);
   
   // Controls whether the Student Dashboard is open
   const [isStudentDashboardOpen, setIsStudentDashboardOpen] =
-    useState(false);
+  useState(() => Boolean(sessionStorage.getItem("studentToken")));
 
   
   // Controls whether the Login Page is visible
-  const [isLoginPageOpen, setIsLoginPageOpen] = useState(
-  () => !sessionStorage.getItem("adminToken")
+const [isLoginPageOpen, setIsLoginPageOpen] = useState(
+  () =>
+    !sessionStorage.getItem("adminToken") &&
+    !sessionStorage.getItem("studentToken")
 );
 
   // Stores messages displayed on the Login Page
@@ -116,14 +118,41 @@ const [loggedInAdmin, setLoggedInAdmin] = useState(() => {
 }); 
 
   // Stores Student Login details
-  const [studentLogin, setStudentLogin] = useState({
-    rollNo: "",
-    email: "",
-  });
+ // Store student login details
+const [studentLogin, setStudentLogin] = useState({
+  username: "",
+  password: "",
+});
+
+// Store student authentication token
+const [studentToken, setStudentToken] = useState(
+  () => sessionStorage.getItem("studentToken") || ""
+);
+
+// Store logged-in student details
+const [loggedInStudent, setLoggedInStudent] = useState(() => {
+  try {
+    return JSON.parse(
+      sessionStorage.getItem("studentUser") || "null"
+    );
+  } catch {
+    return null;
+  }
+});
 
 
   // Stores the student selected for preview
-  const [selectedStudentId, setSelectedStudentId] = useState("");
+  const [selectedStudentId, setSelectedStudentId] = useState(() => {
+  try {
+    const savedStudent = JSON.parse(
+      sessionStorage.getItem("studentUser") || "null"
+    );
+
+    return savedStudent?.id ? String(savedStudent.id) : "";
+  } catch {
+    return "";
+  }
+});
 
   // Displays temporary messages in the Student Dashboard
   const [studentPreviewMessage, setStudentPreviewMessage] =
@@ -281,6 +310,72 @@ const [loggedInAdmin, setLoggedInAdmin] = useState(() => {
   }, []);
 
   
+// Verify the saved student session when the page refreshes
+useEffect(() => {
+  const savedToken = sessionStorage.getItem("studentToken");
+
+  if (!savedToken) {
+    return;
+  }
+
+  let cancelled = false;
+
+  const verifyStudentSession = async () => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/student-auth/me`,
+        {
+          headers: {
+            Authorization: `Bearer ${savedToken}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error("Student session expired.");
+      }
+
+      if (!cancelled) {
+        sessionStorage.setItem(
+          "studentUser",
+          JSON.stringify(data.student)
+        );
+
+        setStudentToken(savedToken);
+        setLoggedInStudent(data.student);
+        setSelectedStudentId(String(data.student.id));
+        setIsStudentDashboardOpen(true);
+        setIsLoginPageOpen(false);
+      }
+
+    } catch (error) {
+      if (!cancelled) {
+        console.error("Student session verification:", error);
+
+        sessionStorage.removeItem("studentToken");
+        sessionStorage.removeItem("studentUser");
+
+        setStudentToken("");
+        setLoggedInStudent(null);
+        setSelectedStudentId("");
+        setIsStudentDashboardOpen(false);
+
+        if (!sessionStorage.getItem("adminToken")) {
+          setIsLoginPageOpen(true);
+        }
+      }
+    }
+  };
+
+  verifyStudentSession();
+
+  return () => {
+    cancelled = true;
+  };
+}, []);
+
   // Load saved assignments from the backend
   useEffect(() => {
     const controller = new AbortController();
@@ -985,46 +1080,74 @@ setLoggedInAdmin(data.admin);
 
   
   // Handle Student Login
-  const handleStudentLogin = (event) => {
-    event.preventDefault();
+  
+// Handle Student Login through the backend API
+const handleStudentLogin = async (event) => {
+  event.preventDefault();
+  setLoginMessage("");
 
-    // Find a student matching the entered roll number and email
-    const matchedStudent = students.find(
-      (student) =>
-        String(student.rollNo).trim().toLowerCase() ===
-          studentLogin.rollNo.trim().toLowerCase() &&
-        student.email.trim().toLowerCase() ===
-          studentLogin.email.trim().toLowerCase()
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/student-auth/login`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username: studentLogin.username.trim(),
+          password: studentLogin.password,
+        }),
+      }
     );
 
-    // Display an error if no matching student exists
-    if (!matchedStudent) {
-      setLoginMessage(
-        "Student not found. Check your roll number and email."
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(
+        data.message || "Invalid student username or password."
       );
-      return;
     }
 
-    // Remember the selected student's ID
-    setSelectedStudentId(String(matchedStudent.id));
+    // Save the student session
+    sessionStorage.setItem("studentToken", data.token);
 
-    // Open the Student Dashboard
+    sessionStorage.setItem(
+      "studentUser",
+      JSON.stringify(data.student)
+    );
+
+    // Update React states
+    setStudentToken(data.token);
+    setLoggedInStudent(data.student);
+    setSelectedStudentId(String(data.student.id));
+
+    // Open Student Dashboard
     setIsStudentDashboardOpen(true);
     setIsLoginPageOpen(false);
 
-    // Reset the Student Dashboard's temporary view states
+    // Reset dashboard sections
     setIsMyAttendanceOpen(false);
     setStudentAttendanceView("");
     setIsMyAssignmentsOpen(false);
     setStudentPreviewMessage("");
     setLoginMessage("");
 
-    // Clear the login fields
+    // Clear login fields
     setStudentLogin({
-      rollNo: "",
-      email: "",
+      username: "",
+      password: "",
     });
-  };
+
+  } catch (error) {
+    console.error("Student login error:", error);
+
+    setLoginMessage(
+      error.message || "Unable to log in. Please try again."
+    );
+  }
+};
+
 
 
   // Find the student selected for preview
@@ -1237,43 +1360,53 @@ setLoggedInAdmin(data.admin);
           <section className="login-card">
             <h2>Student Login</h2>
 
-            <form onSubmit={handleStudentLogin}>
-              <label>
-                Roll Number
-                <input
-                  type="text"
-                  value={studentLogin.rollNo}
-                  onChange={(event) =>
-                    setStudentLogin((current) => ({
-                      ...current,
-                      rollNo: event.target.value,
-                    }))
-                  }
-                  placeholder="Enter roll number"
-                  required
-                />
-              </label>
+            
+<form onSubmit={handleStudentLogin}>
 
-              <label>
-                Email
-                <input
-                  type="email"
-                  value={studentLogin.email}
-                  onChange={(event) =>
-                    setStudentLogin((current) => ({
-                      ...current,
-                      email: event.target.value,
-                    }))
-                  }
-                  placeholder="Enter registered email"
-                  required
-                />
-              </label>
+  <label>
+    Student Username
 
-              <button type="submit">
-                Login as Student
-              </button>
-            </form>
+    <input
+      type="text"
+      value={studentLogin.username}
+      onChange={(event) =>
+        setStudentLogin((current) => ({
+          ...current,
+          username: event.target.value,
+        }))
+      }
+      placeholder="Enter your username"
+      required
+    />
+  </label>
+
+  <label>
+    Password
+
+    <input
+      type="password"
+      value={studentLogin.password}
+      onChange={(event) =>
+        setStudentLogin((current) => ({
+          ...current,
+          password: event.target.value,
+        }))
+      }
+      placeholder="Enter your password"
+      required
+    />
+  </label>
+
+  <button type="submit">
+    Login as Student
+  </button>
+
+</form>
+
+<p className="login-hint">
+  Use the username and initial password provided by Admin.
+</p>
+
 
             <p className="login-hint">
               Use the roll number and email added by Admin.
@@ -1314,6 +1447,11 @@ setLoggedInAdmin(data.admin);
 <button
   type="button"
   onClick={() => {
+    sessionStorage.removeItem("studentToken");
+sessionStorage.removeItem("studentUser");
+
+setStudentToken("");
+setLoggedInStudent(null);
     setIsStudentDashboardOpen(false);
     setIsLoginPageOpen(true);
 
